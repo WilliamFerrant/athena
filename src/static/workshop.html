@@ -229,6 +229,61 @@ a:hover{text-decoration:underline}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 ::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+
+/* ═══ TASK BOARD OVERLAY ═════════════════════════════════════════════════ */
+.board-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:900;display:none;align-items:stretch;justify-content:center;padding:40px 20px}
+.board-overlay.open{display:flex}
+.board-container{background:var(--bg);border:1px solid var(--border);border-radius:10px;width:100%;max-width:1400px;display:flex;flex-direction:column;overflow:hidden}
+.board-header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--border);flex-shrink:0}
+.board-title{font-size:16px;font-weight:800;color:var(--text-bright);letter-spacing:1px}
+.board-header-right{display:flex;align-items:center;gap:8px}
+.board-filter{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:4px;font-size:11px;outline:none}
+.board-close{background:none;border:1px solid var(--border);color:var(--muted);width:28px;height:28px;border-radius:4px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.board-close:hover{border-color:var(--red);color:var(--red)}
+.board-body{flex:1;display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:14px;overflow-x:auto}
+.board-col{background:var(--surface);border:1px solid var(--border);border-radius:7px;display:flex;flex-direction:column;min-width:200px;overflow:hidden}
+.board-col-header{padding:8px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;flex-shrink:0}
+.board-col-header.backlog{color:var(--muted)}
+.board-col-header.planned{color:var(--blue)}
+.board-col-header.in-progress{color:var(--yellow)}
+.board-col-header.review{color:var(--purple)}
+.board-col-header.done{color:var(--green)}
+.col-count{background:var(--surface2);padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700}
+.board-col-body{flex:1;overflow-y:auto;padding:6px}
+.board-col-add{padding:6px 12px;border-top:1px solid var(--border)}
+.board-col-add button{width:100%;background:none;border:1px dashed var(--border);color:var(--muted);padding:4px;border-radius:4px;cursor:pointer;font-size:11px;transition:all .15s}
+.board-col-add button:hover{border-color:var(--accent);color:var(--accent)}
+
+/* Task card */
+.task-card{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:8px 10px;margin-bottom:6px;cursor:pointer;transition:all .15s}
+.task-card:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.task-card .tc-title{font-size:11px;font-weight:600;color:var(--text-bright);margin-bottom:3px;display:flex;align-items:flex-start;gap:4px}
+.task-card .tc-title .tc-priority{font-size:8px;flex-shrink:0;margin-top:2px}
+.tc-priority.urgent{color:var(--red)}
+.tc-priority.high{color:var(--orange)}
+.tc-meta{display:flex;align-items:center;gap:5px;font-size:9px;color:var(--muted);flex-wrap:wrap}
+.tc-meta .tc-agent{color:var(--accent);font-weight:600}
+.tc-meta .tc-project{color:var(--cyan);font-weight:600}
+.tc-autopilot{display:inline-flex;align-items:center;gap:2px;color:var(--yellow);font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.task-card .tc-actions{display:flex;gap:3px;margin-top:5px;opacity:0;transition:opacity .15s}
+.task-card:hover .tc-actions{opacity:1}
+.tc-act{background:none;border:1px solid var(--border);color:var(--muted);padding:2px 6px;border-radius:3px;cursor:pointer;font-size:9px;transition:all .15s}
+.tc-act:hover{border-color:var(--accent);color:var(--accent)}
+.tc-act.del:hover{border-color:var(--red);color:var(--red)}
+
+/* New task form */
+.new-task-form{padding:10px;border:1px solid var(--accent);border-radius:5px;background:var(--surface);margin:6px 0}
+.new-task-form input,.new-task-form textarea,.new-task-form select{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:4px;font-size:11px;margin-bottom:6px;font-family:inherit}
+.new-task-form input:focus,.new-task-form textarea:focus{outline:none;border-color:var(--accent)}
+.new-task-form textarea{min-height:40px;resize:vertical}
+.ntf-row{display:flex;gap:5px}
+.ntf-row select{flex:1}
+.ntf-actions{display:flex;gap:5px;justify-content:flex-end}
+.ntf-btn{padding:4px 12px;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;border:none}
+.ntf-btn.save{background:var(--accent);color:var(--bg)}
+.ntf-btn.save:hover{background:var(--accent2)}
+.ntf-btn.cancel{background:none;border:1px solid var(--border);color:var(--muted)}
+.ntf-btn.cancel:hover{border-color:var(--red);color:var(--red)}
 </style>
 </head>
 <body>
@@ -243,6 +298,7 @@ a:hover{text-decoration:underline}
     <div class="status-pill ok" id="apiStatus"><span class="sd"></span><span>API</span></div>
     <div class="status-pill off" id="runnerStatus"><span class="sd"></span><span>Runner</span><span id="runnerInfo" style="font-size:9px">—</span></div>
     <a href="/" class="tb-btn">&#9664; Bridge</a>
+    <button class="tb-btn" id="tbBoard" onclick="toggleTaskBoard()">&#9744; Board</button>
     <button class="tb-btn" onclick="refreshAll()">&#8635; Refresh</button>
     <span class="clock" id="clock"></span>
   </div>
@@ -332,6 +388,22 @@ a:hover{text-decoration:underline}
   <div class="bb-item" id="bbFocused">—</div>
   <div style="flex:1"></div>
   <div class="bb-item" id="bbHealth">—</div>
+</div>
+
+<!-- TASK BOARD OVERLAY -->
+<div class="board-overlay" id="boardOverlay">
+  <div class="board-container">
+    <div class="board-header">
+      <span class="board-title">&#9744; Task Board</span>
+      <div class="board-header-right">
+        <select class="board-filter" id="boardProjectFilter" onchange="loadBoard()">
+          <option value="">All projects</option>
+        </select>
+        <button class="board-close" onclick="toggleTaskBoard()">&times;</button>
+      </div>
+    </div>
+    <div class="board-body" id="boardBody"></div>
+  </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
@@ -1133,6 +1205,235 @@ function connectHealthSSE(){
     }catch(err){}
   });
   healthSSE.onerror=()=>{ setTimeout(connectHealthSSE,5000); };
+}
+
+// ═══ TASK BOARD ═══════════════════════════════════════════════════════════
+let boardOpen = false;
+const COLUMNS = ['backlog','planned','in-progress','review','done'];
+const COL_ICONS = {backlog:'📥',planned:'📋','in-progress':'⚡',review:'🔍',done:'✅'};
+let newTaskColumn = null;
+
+function toggleTaskBoard(){
+  boardOpen = !boardOpen;
+  const overlay = document.getElementById('boardOverlay');
+  const btn = document.getElementById('tbBoard');
+  if(boardOpen){
+    overlay.classList.add('open');
+    btn.classList.add('active');
+    loadBoard();
+    updateBoardProjectFilter();
+  }else{
+    overlay.classList.remove('open');
+    btn.classList.remove('active');
+  }
+}
+
+function updateBoardProjectFilter(){
+  const sel = document.getElementById('boardProjectFilter');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">All projects</option>';
+  projects.forEach(p=>{
+    sel.innerHTML += `<option value="${p.id}" ${p.id===current?'selected':''}>${esc(p.name)}</option>`;
+  });
+}
+
+async function loadBoard(){
+  const filter = document.getElementById('boardProjectFilter')?.value || '';
+  const url = filter ? `${API}/tasks/board?project_id=${filter}` : `${API}/tasks/board`;
+  try{
+    const r = await fetch(url);
+    const data = await r.json();
+    renderBoard(data.board, data.stats);
+  }catch(e){
+    console.warn('loadBoard:', e);
+    renderEmptyBoard();
+  }
+}
+
+function renderEmptyBoard(){
+  const body = document.getElementById('boardBody');
+  body.innerHTML = COLUMNS.map(col=>{
+    const label = col.replace('-',' ');
+    return `<div class="board-col">
+      <div class="board-col-header ${col}">${COL_ICONS[col]||''} ${label} <span class="col-count">0</span></div>
+      <div class="board-col-body"></div>
+      <div class="board-col-add"><button onclick="showNewTaskForm('${col}')">+ Add task</button></div>
+    </div>`;
+  }).join('');
+}
+
+function renderBoard(board, stats){
+  const body = document.getElementById('boardBody');
+  body.innerHTML = COLUMNS.map(col=>{
+    const tasks = board[col] || [];
+    const label = col.replace('-',' ');
+    const count = tasks.length;
+    const cardsHtml = tasks.map(t => renderTaskCard(t, col)).join('');
+
+    return `<div class="board-col">
+      <div class="board-col-header ${col}">${COL_ICONS[col]||''} ${label} <span class="col-count">${count}</span></div>
+      <div class="board-col-body" id="colBody-${col}">${cardsHtml}</div>
+      <div class="board-col-add"><button onclick="showNewTaskForm('${col}')">+ Add task</button></div>
+    </div>`;
+  }).join('');
+}
+
+function renderTaskCard(t, col){
+  const priorityIcon = t.priority>=2?'<span class="tc-priority urgent">🔴</span>':
+                       t.priority>=1?'<span class="tc-priority high">🟠</span>':'';
+  const agentBadge = t.agent?`<span class="tc-agent">${esc(t.agent)}</span>`:'';
+  const projectBadge = t.project_id?`<span class="tc-project">${esc(t.project_id)}</span>`:'';
+  const autopilotBadge = t.autopilot?'<span class="tc-autopilot">⚡ Auto</span>':'';
+  const descSnippet = t.description?`<div style="font-size:10px;color:var(--muted);margin:2px 0;max-height:30px;overflow:hidden">${esc(t.description.substring(0,80))}</div>`:'';
+
+  // Movement buttons
+  const colIdx = COLUMNS.indexOf(col);
+  const leftBtn = colIdx>0?`<button class="tc-act" onclick="event.stopPropagation();moveTask('${t.id}','${COLUMNS[colIdx-1]}')">◀</button>`:'';
+  const rightBtn = colIdx<COLUMNS.length-1?`<button class="tc-act" onclick="event.stopPropagation();moveTask('${t.id}','${COLUMNS[colIdx+1]}')">▶</button>`:'';
+  const delBtn = `<button class="tc-act del" onclick="event.stopPropagation();deleteTask('${t.id}')">✕</button>`;
+
+  return `<div class="task-card" onclick="editTask('${t.id}')">
+    <div class="tc-title">${priorityIcon}${esc(t.title)}</div>
+    ${descSnippet}
+    <div class="tc-meta">${agentBadge}${projectBadge}${autopilotBadge}</div>
+    <div class="tc-actions">${leftBtn}${rightBtn}${delBtn}</div>
+  </div>`;
+}
+
+function showNewTaskForm(col){
+  newTaskColumn = col;
+  const colBody = document.getElementById(`colBody-${col}`);
+  if(!colBody) return;
+  // Remove any existing forms
+  document.querySelectorAll('.new-task-form').forEach(el=>el.remove());
+
+  const form = document.createElement('div');
+  form.className='new-task-form';
+  form.innerHTML=`
+    <input id="ntfTitle" placeholder="Task title...">
+    <textarea id="ntfDesc" placeholder="Description (optional)"></textarea>
+    <div class="ntf-row">
+      <select id="ntfAgent">
+        <option value="">No agent</option>
+        <option value="manager">Manager</option>
+        <option value="frontend">Frontend</option>
+        <option value="backend">Backend</option>
+        <option value="tester">Tester</option>
+      </select>
+      <select id="ntfPriority">
+        <option value="0">Normal</option>
+        <option value="1">High</option>
+        <option value="2">Urgent</option>
+      </select>
+    </div>
+    <div class="ntf-row">
+      <select id="ntfProject">
+        <option value="">No project</option>
+        ${projects.map(p=>`<option value="${p.id}" ${p.id===focusedId?'selected':''}>${esc(p.name)}</option>`).join('')}
+      </select>
+      <label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--muted);cursor:pointer">
+        <input type="checkbox" id="ntfAutopilot"> Autopilot
+      </label>
+    </div>
+    <div class="ntf-actions">
+      <button class="ntf-btn cancel" onclick="this.closest('.new-task-form').remove()">Cancel</button>
+      <button class="ntf-btn save" onclick="submitNewTask()">Create</button>
+    </div>`;
+  colBody.appendChild(form);
+  document.getElementById('ntfTitle').focus();
+}
+
+async function submitNewTask(){
+  const title = document.getElementById('ntfTitle')?.value.trim();
+  if(!title){ alert('Title is required'); return; }
+  const body = {
+    title,
+    description: document.getElementById('ntfDesc')?.value.trim()||'',
+    column: newTaskColumn||'backlog',
+    agent: document.getElementById('ntfAgent')?.value||null,
+    priority: parseInt(document.getElementById('ntfPriority')?.value||'0'),
+    project_id: document.getElementById('ntfProject')?.value||null,
+    autopilot: document.getElementById('ntfAutopilot')?.checked||false,
+  };
+  try{
+    await fetch(`${API}/tasks/`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    addActivity('📋',`Task created: ${title}`);
+    loadBoard();
+  }catch(e){ alert('Failed to create task: '+e.message); }
+}
+
+async function moveTask(taskId, toColumn){
+  try{
+    await fetch(`${API}/tasks/${taskId}/move`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({column:toColumn})});
+    loadBoard();
+  }catch(e){ console.warn('moveTask:', e); }
+}
+
+async function deleteTask(taskId){
+  if(!confirm('Delete this task?')) return;
+  try{
+    await fetch(`${API}/tasks/${taskId}`,{method:'DELETE'});
+    addActivity('🗑️','Task deleted');
+    loadBoard();
+  }catch(e){ console.warn('deleteTask:', e); }
+}
+
+async function editTask(taskId){
+  // Simple: open the task in a floating window for editing
+  try{
+    const r = await fetch(`${API}/tasks/${taskId}`);
+    const data = await r.json();
+    const t = data.task;
+    const html = `<div class="commit-view">
+      <label>Title</label>
+      <input id="editTitle-${taskId}" value="${esc(t.title)}">
+      <label>Description</label>
+      <textarea id="editDesc-${taskId}">${esc(t.description)}</textarea>
+      <div class="ntf-row" style="margin-bottom:12px">
+        <div style="flex:1"><label>Agent</label>
+        <select id="editAgent-${taskId}" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px;border-radius:4px;font-size:11px">
+          <option value="">None</option>
+          <option value="manager" ${t.agent==='manager'?'selected':''}>Manager</option>
+          <option value="frontend" ${t.agent==='frontend'?'selected':''}>Frontend</option>
+          <option value="backend" ${t.agent==='backend'?'selected':''}>Backend</option>
+          <option value="tester" ${t.agent==='tester'?'selected':''}>Tester</option>
+        </select></div>
+        <div style="flex:1"><label>Priority</label>
+        <select id="editPriority-${taskId}" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px;border-radius:4px;font-size:11px">
+          <option value="0" ${t.priority===0?'selected':''}>Normal</option>
+          <option value="1" ${t.priority===1?'selected':''}>High</option>
+          <option value="2" ${t.priority>=2?'selected':''}>Urgent</option>
+        </select></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <label style="font-size:10px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer">
+          <input type="checkbox" id="editAP-${taskId}" ${t.autopilot?'checked':''}> Autopilot
+        </label>
+      </div>
+      ${t.result?`<label>Result</label><div style="font-family:var(--font-mono);font-size:10px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:8px;margin-bottom:12px;max-height:100px;overflow-y:auto">${esc(t.result)}</div>`:''}
+      <div class="cv-actions">
+        <button class="cv-btn outline" onclick="closeWindow(${windowIdCounter+1})">Cancel</button>
+        <button class="cv-btn primary" onclick="saveTaskEdit('${taskId}',${windowIdCounter+1})">Save</button>
+      </div>
+    </div>`;
+    createWindow('commit', `Edit: ${t.title.substring(0,30)}`, html, {width:450,height:420});
+  }catch(e){ console.warn('editTask:', e); }
+}
+
+async function saveTaskEdit(taskId, winId){
+  const fields = {
+    title: document.getElementById(`editTitle-${taskId}`)?.value.trim(),
+    description: document.getElementById(`editDesc-${taskId}`)?.value.trim(),
+    agent: document.getElementById(`editAgent-${taskId}`)?.value||null,
+    priority: parseInt(document.getElementById(`editPriority-${taskId}`)?.value||'0'),
+    autopilot: document.getElementById(`editAP-${taskId}`)?.checked||false,
+  };
+  try{
+    await fetch(`${API}/tasks/${taskId}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(fields)});
+    addActivity('📋',`Task updated: ${fields.title}`);
+    closeWindow(winId);
+    loadBoard();
+  }catch(e){ alert('Failed to save: '+e.message); }
 }
 
 // ═══ REFRESH ═══════════════════════════════════════════════════════════════
