@@ -284,6 +284,93 @@ a:hover{text-decoration:underline}
 .ntf-btn.save:hover{background:var(--accent2)}
 .ntf-btn.cancel{background:none;border:1px solid var(--border);color:var(--muted)}
 .ntf-btn.cancel:hover{border-color:var(--red);color:var(--red)}
+
+/* ═══ PUSH/PR ═════════════════════════════════════════════════════════════ */
+.pr-result{padding:12px;font-size:12px}
+.pr-result a{color:var(--accent);font-weight:600}
+.pr-result .pr-url{font-family:var(--font-mono);font-size:11px;background:var(--bg);padding:4px 8px;border-radius:4px;display:inline-block;margin-top:6px}
+
+/* ═══ USAGE OVERLAY ══════════════════════════════════════════════════════ */
+.usage-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:900;display:none;align-items:center;justify-content:center;padding:40px 20px}
+.usage-overlay.open{display:flex}
+.usage-container{background:var(--bg);border:1px solid var(--border);border-radius:10px;width:100%;max-width:700px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden}
+.usage-header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--border)}
+.usage-title{font-size:16px;font-weight:800;color:var(--text-bright);letter-spacing:1px}
+.usage-body{flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:16px}
+.usage-card{background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:14px}
+.usage-card-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent);margin-bottom:8px}
+.usage-bar-wrap{height:8px;background:var(--surface2);border-radius:4px;overflow:hidden;margin:6px 0}
+.usage-bar{height:100%;border-radius:4px;transition:width .5s}
+.usage-bar.ok{background:var(--green)}
+.usage-bar.warn{background:var(--yellow)}
+.usage-bar.crit{background:var(--red)}
+.usage-stat{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+.usage-stat .val{color:var(--text-bright);font-weight:600;font-family:var(--font-mono)}
+.usage-models{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.usage-model-item{background:var(--surface2);border-radius:5px;padding:8px 10px;font-size:11px}
+.usage-model-item .model-name{color:var(--text-bright);font-weight:600;font-size:10px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.usage-model-item .model-tokens{color:var(--accent);font-family:var(--font-mono);font-weight:600}
+
+/* ═══ ORCHESTRATOR OVERLAY ════════════════════════════════════════════════ */
+.orch-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:900;display:none;align-items:center;justify-content:center;padding:40px 20px}
+.orch-overlay.open{display:flex}
+.orch-container{background:var(--bg);border:1px solid var(--border);border-radius:10px;width:100%;max-width:800px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden}
+.orch-header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--border)}
+.orch-title{font-size:16px;font-weight:800;color:var(--text-bright);letter-spacing:1px}
+.orch-body{flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:12px}
+.orch-input-area{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
+.orch-textarea{width:100%;min-height:60px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:10px;border-radius:6px;font-family:inherit;font-size:12px;resize:vertical}
+.orch-textarea:focus{outline:none;border-color:var(--accent)}
+.orch-actions{display:flex;gap:8px;align-items:center}
+.orch-run{padding:6px 20px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:var(--accent);color:var(--bg);transition:all .2s}
+.orch-run:hover{background:var(--accent2)}
+.orch-run:disabled{opacity:.4;cursor:not-allowed}
+.orch-status{font-size:11px;color:var(--muted);flex:1}
+.orch-phase{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px 14px}
+.orch-phase-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.orch-phase-title.planning{color:var(--blue)}
+.orch-phase-title.executing{color:var(--yellow)}
+.orch-phase-title.reviewing{color:var(--purple)}
+.orch-phase-title.synthesizing{color:var(--cyan)}
+.orch-phase-title.done{color:var(--green)}
+.orch-phase-title.error{color:var(--red)}
+.orch-phase-detail{font-size:12px;color:var(--text);line-height:1.5;white-space:pre-wrap;word-break:break-word;max-height:200px;overflow-y:auto}
+.orch-subtask{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:8px 12px;margin-left:16px}
+.orch-subtask-header{display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:4px}
+.orch-subtask-header .agent-tag{color:var(--accent);font-weight:700}
+.orch-subtask-header .status-tag{font-weight:600}
+.orch-subtask-header .status-tag.done{color:var(--green)}
+.orch-subtask-header .status-tag.running{color:var(--yellow)}
+.orch-subtask-header .status-tag.error{color:var(--red)}
+.orch-subtask-result{font-size:11px;color:var(--muted);font-family:var(--font-mono);white-space:pre-wrap;max-height:100px;overflow-y:auto;margin-top:4px}
+.orch-final{background:var(--green-dim);border:1px solid var(--green);border-radius:6px;padding:14px}
+.orch-final-title{font-size:11px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.orch-final-text{font-size:12px;color:var(--text);line-height:1.5;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow-y:auto}
+
+/* ═══ MEMORY OVERLAY ═════════════════════════════════════════════════════ */
+.mem-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:900;display:none;align-items:center;justify-content:center;padding:40px 20px}
+.mem-overlay.open{display:flex}
+.mem-container{background:var(--bg);border:1px solid var(--border);border-radius:10px;width:100%;max-width:700px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden}
+.mem-header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--border)}
+.mem-title{font-size:16px;font-weight:800;color:var(--text-bright);letter-spacing:1px}
+.mem-toolbar{display:flex;align-items:center;gap:8px;padding:10px 20px;border-bottom:1px solid var(--border)}
+.mem-agent-sel{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:4px;font-size:11px;outline:none}
+.mem-search-input{flex:1;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:4px;font-size:11px;outline:none}
+.mem-search-input:focus{border-color:var(--accent)}
+.mem-search-btn{background:var(--accent);border:none;color:var(--bg);padding:5px 12px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer}
+.mem-search-btn:hover{background:var(--accent2)}
+.mem-body{flex:1;overflow-y:auto;padding:12px 20px}
+.mem-empty{color:var(--muted);font-size:12px;font-style:italic;text-align:center;padding:20px}
+.mem-item{background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:10px 12px;margin-bottom:6px;font-size:12px;color:var(--text);line-height:1.4}
+.mem-item .mem-meta{font-size:9px;color:var(--muted);margin-top:4px;display:flex;gap:8px}
+.mem-add-area{padding:10px 20px;border-top:1px solid var(--border);display:flex;gap:6px}
+.mem-add-input{flex:1;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:4px;font-size:11px;outline:none}
+.mem-add-input:focus{border-color:var(--accent)}
+.mem-add-btn{background:var(--accent);border:none;color:var(--bg);padding:6px 14px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer}
+.mem-add-btn:hover{background:var(--accent2)}
+.mem-clear-btn{background:none;border:1px solid var(--red);color:var(--red);padding:5px 12px;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;transition:all .2s}
+.mem-clear-btn:hover{background:var(--red);color:var(--bg)}
+.mem-stats{font-size:10px;color:var(--muted);padding:4px 0}
 </style>
 </head>
 <body>
@@ -299,6 +386,9 @@ a:hover{text-decoration:underline}
     <div class="status-pill off" id="runnerStatus"><span class="sd"></span><span>Runner</span><span id="runnerInfo" style="font-size:9px">—</span></div>
     <a href="/" class="tb-btn">&#9664; Bridge</a>
     <button class="tb-btn" id="tbBoard" onclick="toggleTaskBoard()">&#9744; Board</button>
+    <button class="tb-btn" onclick="toggleUsage()">&#128200; Usage</button>
+    <button class="tb-btn" onclick="toggleOrchestrator()">&#9889; Mission</button>
+    <button class="tb-btn" onclick="toggleMemory()">&#128065; Memory</button>
     <button class="tb-btn" onclick="refreshAll()">&#8635; Refresh</button>
     <span class="clock" id="clock"></span>
   </div>
@@ -362,6 +452,7 @@ a:hover{text-decoration:underline}
         <button class="ca-btn" id="btnStage" onclick="stageFiles()" disabled>&#43; Stage All</button>
         <button class="ca-btn" id="btnCommit" onclick="generateCommit()" disabled>&#128221; Generate Commit</button>
         <button class="ca-btn" id="btnTests" onclick="runTests()" disabled>&#9989; Tests</button>
+        <button class="ca-btn" id="btnPushPR" onclick="pushAndPR()" disabled>&#128640; Push &amp; PR</button>
       </div>
       <div class="chat-agent-row">
         <select class="chat-agent-sel" id="agentSelect">
@@ -406,6 +497,62 @@ a:hover{text-decoration:underline}
   </div>
 </div>
 
+<!-- USAGE OVERLAY -->
+<div class="usage-overlay" id="usageOverlay">
+  <div class="usage-container">
+    <div class="usage-header">
+      <span class="usage-title">&#128200; Usage &amp; Budget</span>
+      <button class="board-close" onclick="toggleUsage()">&times;</button>
+    </div>
+    <div class="usage-body" id="usageBody">
+      <div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Loading...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ORCHESTRATOR OVERLAY -->
+<div class="orch-overlay" id="orchOverlay">
+  <div class="orch-container">
+    <div class="orch-header">
+      <span class="orch-title">&#9889; Run Mission</span>
+      <button class="board-close" onclick="toggleOrchestrator()">&times;</button>
+    </div>
+    <div class="orch-input-area">
+      <textarea class="orch-textarea" id="orchInput" placeholder="Describe the mission for the agent team..."></textarea>
+      <div class="orch-actions">
+        <button class="orch-run" id="orchRunBtn" onclick="runMission()">&#9654; Run Mission</button>
+        <span class="orch-status" id="orchStatus"></span>
+      </div>
+    </div>
+    <div class="orch-body" id="orchBody">
+      <div style="color:var(--muted);font-size:12px;text-align:center;padding:20px;font-style:italic">Enter a task and click Run to start the multi-agent orchestrator</div>
+    </div>
+  </div>
+</div>
+
+<!-- MEMORY OVERLAY -->
+<div class="mem-overlay" id="memOverlay">
+  <div class="mem-container">
+    <div class="mem-header">
+      <span class="mem-title">&#128065; Agent Memory</span>
+      <button class="board-close" onclick="toggleMemory()">&times;</button>
+    </div>
+    <div class="mem-toolbar">
+      <select class="mem-agent-sel" id="memAgentSelect" onchange="loadMemories()"></select>
+      <input class="mem-search-input" id="memSearchInput" placeholder="Search memories..." onkeydown="if(event.key==='Enter')searchMemories()">
+      <button class="mem-search-btn" onclick="searchMemories()">Search</button>
+      <button class="mem-clear-btn" onclick="clearMemories()">Clear All</button>
+    </div>
+    <div class="mem-body" id="memBody">
+      <div class="mem-empty">Select an agent to view memories</div>
+    </div>
+    <div class="mem-add-area">
+      <input class="mem-add-input" id="memAddInput" placeholder="Add a new memory..." onkeydown="if(event.key==='Enter')addMemory()">
+      <button class="mem-add-btn" onclick="addMemory()">Add</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════════════════════════════════════════════════════════════
      JAVASCRIPT
      ═══════════════════════════════════════════════════════════════════════════ -->
@@ -425,15 +572,39 @@ let windowIdCounter = 0;
 let windows = {};     // { id: {el,type,title,z} }
 let topZ = 100;
 let devUrl = null;
+let apiOk = false;
+let agentList = [];  // populated from /api/agents
+let usageOpen = false;
+let orchOpen = false;
+let memOpen = false;
 
 // ═══ HELPERS ═══════════════════════════════════════════════════════════════
 function esc(s){ const d=document.createElement('div');d.textContent=s||'';return d.innerHTML; }
+function escAttr(s){ return String(s||'').replace(/&/g,'&amp;').replace(/'/g,'&#39;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function fmt(n){ if(n==null)return'0';if(n>=1e6)return(n/1e6).toFixed(1)+'M';if(n>=1e3)return(n/1e3).toFixed(1)+'K';return String(n); }
 function timeAgo(ts){ if(!ts)return'—'; const d=Date.now()-new Date(ts).getTime(); const m=Math.floor(d/60000); if(m<1)return'now'; if(m<60)return m+'m'; const h=Math.floor(m/60); if(h<24)return h+'h'; return Math.floor(h/24)+'d'; }
 
 // ═══ CLOCK ═════════════════════════════════════════════════════════════════
 function tick(){ document.getElementById('clock').textContent=new Date().toLocaleTimeString('en-US',{hour12:false}); }
 setInterval(tick,1000); tick();
+
+// ═══ API STATUS POLL ═══════════════════════════════════════════════════════
+async function pollApiStatus(){
+  const pill = document.getElementById('apiStatus');
+  const bbDot = document.getElementById('bbApiDot');
+  try{
+    const r = await fetch(`${API}/status`);
+    if(r.ok){
+      apiOk = true;
+      pill.className = 'status-pill ok';
+      bbDot.style.background = 'var(--green)';
+    } else { throw new Error(); }
+  }catch(e){
+    apiOk = false;
+    pill.className = 'status-pill off';
+    bbDot.style.background = 'var(--muted)';
+  }
+}
 
 // ═══ ACTIVITY FEED ═════════════════════════════════════════════════════════
 function addActivity(icon, text){
@@ -476,7 +647,7 @@ function updateRunnerUI(){
 
 function updateActionButtons(){
   const on = runnerOnline && focusedId;
-  ['btnLaunch','btnStage','btnCommit','btnTests'].forEach(id=>{
+  ['btnLaunch','btnStage','btnCommit','btnTests','btnPushPR'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.disabled=!on;
   });
@@ -490,8 +661,18 @@ async function loadProjects(){
     projects=data.projects||[];
     renderProjectList();
     renderHealthList();
+    updateBbHealth();
     if(focusedId) refreshFocused();
   }catch(e){ console.warn('loadProjects:',e); }
+}
+
+function updateBbHealth(){
+  const el=document.getElementById('bbHealth');
+  if(!projects.length){ el.textContent='—'; return; }
+  const up=projects.filter(p=>p.health==='up').length;
+  const total=projects.length;
+  if(up===total) el.innerHTML='<span style=\"color:var(--green)\">All healthy ('+total+')</span>';
+  else el.innerHTML='<span style=\"color:var(--yellow)\">'+up+'/'+total+' healthy</span>';
 }
 
 function renderProjectList(){
@@ -503,7 +684,7 @@ function renderProjectList(){
     const ds=devStates[p.id];
     const devDot=ds&&ds.status==='online'?'live':'off';
     const checks=(p.checks||[]).length;
-    return `<div class="proj-row${active}" onclick="focusProject('${p.id}')">
+    return `<div class="proj-row${active}" onclick="focusProject('${escAttr(p.id)}')">
       <span class="dot ${dot}"></span>
       <span class="pname">${esc(p.name)}</span>
       <span class="dev-dot ${devDot}" title="${devDot==='live'?'Dev online':'Dev offline'}"></span>
@@ -524,7 +705,7 @@ function renderHealthList(){
     const branch=ds&&ds.branch?ds.branch:'main';
     const latest=(p.checks||[])[0]||{};
     const ago=latest.timestamp?timeAgo(latest.timestamp):'—';
-    return `<div class="hcard${active}" onclick="focusProject('${p.id}')">
+    return `<div class="hcard${active}" onclick="focusProject('${escAttr(p.id)}')">
       <div class="hcard-top">
         <div class="hcard-name"><span class="dot ${hClass}"></span> ${esc(p.name)}</div>
         <div class="hcard-badges"><span class="hbadge ${hClass}">${(p.health||'?').toUpperCase()}</span>${devBadge}</div>
@@ -665,7 +846,7 @@ function renderFileTree(){
     html+=`<div class="ft-dir">📁 ${esc(dir)}</div>`;
     for(const f of groups[dir]){
       const icon=f.status==='A'?'🟢':f.status==='D'?'🔴':f.status==='?'?'🟡':'📝';
-      html+=`<div class="ft-file" onclick="openFileDiff('${esc(f.path)}')" title="${esc(f.path)}">
+      html+=`<div class="ft-file" onclick="openFileDiff('${escAttr(f.path)}')" title="${esc(f.path)}">
         <span class="ficon">${icon}</span>
         <span class="fname">${esc(f.name)}</span>
         <span class="fstat ${f.status}">${f.status}</span>
@@ -864,6 +1045,7 @@ function openCommitWindow(title, description, files){
     <div class="cv-actions">
       <button class="cv-btn outline" onclick="closeAllCommitWindows()">Cancel</button>
       <button class="cv-btn primary" id="commitConfirmBtn" onclick="confirmCommit()">Commit</button>
+      <button class="cv-btn primary" style="background:var(--green)" onclick="confirmCommitAndPR()">Commit &amp; PR</button>
     </div>
   </div>`;
   createWindow('commit', '📝 Commit', html, {width:500,height:450});
@@ -1196,11 +1378,19 @@ async function confirmCommit(){
 function connectHealthSSE(){
   if(healthSSE) healthSSE.close();
   healthSSE=new EventSource(`${API}/health/stream`);
+  healthSSE.addEventListener('init',e=>{
+    try{
+      const data=JSON.parse(e.data);
+      if(Array.isArray(data) && data.length){
+        addActivity('❤️',`Health init: ${data.length} check(s) loaded`);
+        loadProjects();
+      }
+    }catch(err){}
+  });
   healthSSE.addEventListener('check',e=>{
     try{
       const data=JSON.parse(e.data);
       addActivity(data.status==='up'?'🟢':(data.status==='down'?'🔴':'🟡'),`${data.project_id}/${data.check_id}: ${data.status}`);
-      // Reload projects to get updated health
       loadProjects();
     }catch(err){}
   });
@@ -1436,10 +1626,451 @@ async function saveTaskEdit(taskId, winId){
   }catch(e){ alert('Failed to save: '+e.message); }
 }
 
+// ═══ PUSH & PR ═════════════════════════════════════════════════════════════
+async function pushAndPR(){
+  if(!focusedId||!runnerOnline) return;
+  const ds = devStates[focusedId];
+  if(!ds||ds.status!=='online'){ alert('Project not available on runner'); return; }
+
+  const branch = ds.branch||'';
+  // Safety: refuse main/master
+  if(branch==='main'||branch==='master'){
+    alert('⛔ Cannot push directly to '+branch+'. Create a feature branch first.');
+    return;
+  }
+
+  // Safety: refuse if dirty without confirm
+  if(ds.dirtyCount>0){
+    if(!confirm('You have '+ds.dirtyCount+' uncommitted change(s). Stage and commit before pushing?\n\nClick OK to abort and commit first, or Cancel to push anyway.')){
+      // User said Cancel = push anyway (risky but allowed)
+    } else {
+      return; // User said OK = go commit first
+    }
+  }
+
+  const title = prompt('PR Title:', branch.replace(/[-_]/g,' '));
+  if(!title) return;
+  const body = prompt('PR Description (optional):', '')||'';
+  const base = prompt('Base branch:', 'main')||'main';
+
+  const btn = document.getElementById('btnPushPR');
+  btn.classList.add('running'); btn.disabled=true;
+  addActivity('🚀','Pushing '+branch+' and creating PR...');
+
+  try{
+    const r = await fetch(`${API}/runner/git/push-pr`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({projectId:focusedId, branch, base, title, body, remote:'origin'})
+    });
+    if(!r.ok){
+      const e=await r.json();
+      throw new Error(e.detail||r.statusText);
+    }
+    const result=await r.json();
+    // Show result in floating window
+    let html='<div class="pr-result">';
+    html+='<div style="color:var(--green);font-size:14px;font-weight:700;margin-bottom:8px">✅ Push & PR Complete</div>';
+    if(result.pr_url) html+='<div>PR URL: <a href="'+esc(result.pr_url)+'" target="_blank">'+esc(result.pr_url)+'</a></div>';
+    html+='<div>Branch: <span class="pr-url">'+esc(branch)+' → '+esc(base)+'</span></div>';
+    if(result.stdout) html+='<div style="margin-top:8px;font-family:var(--font-mono);font-size:10px;color:var(--muted);white-space:pre-wrap">'+esc(result.stdout)+'</div>';
+    html+='</div>';
+    createWindow('commit','🚀 PR Created', html, {width:500, height:300});
+    addActivity('✅','PR created: '+title);
+  }catch(e){
+    addActivity('❌','Push & PR failed: '+e.message);
+    alert('Push & PR failed: '+e.message);
+  }finally{
+    btn.classList.remove('running'); btn.disabled=!runnerOnline||!focusedId;
+  }
+}
+
+async function confirmCommitAndPR(){
+  // First commit, then push & PR
+  const titleEl=document.getElementById('commitTitle');
+  const descEl=document.getElementById('commitDesc');
+  if(!titleEl||!descEl)return;
+  const title=titleEl.value.trim();
+  const desc=descEl.value.trim();
+  if(!title){ alert('Commit title is required'); return; }
+
+  const ds = devStates[focusedId];
+  const branch = ds?.branch||'';
+  if(branch==='main'||branch==='master'){
+    alert('⛔ Cannot push to '+branch+'. Create a feature branch first.');
+    return;
+  }
+
+  const confirmBtn=document.querySelector('.cv-actions .cv-btn.primary:last-child');
+  if(confirmBtn){ confirmBtn.disabled=true; confirmBtn.textContent='Working...'; }
+
+  const message=desc?`${title}\n\n${desc}`:title;
+  try{
+    const safe=message.replace(/"/g,'\\"').replace(/`/g,'\\`');
+    await runRunnerCmd(focusedId,`git commit -m "${safe}"`,30);
+    addActivity('✅',`Committed: ${title}`);
+    closeAllCommitWindows();
+    await refreshFocused();
+
+    // Now push & PR
+    const base=prompt('Base branch for PR:','main')||'main';
+    const prBody=prompt('PR Description (optional):','')||'';
+    addActivity('🚀','Pushing and creating PR...');
+    const r=await fetch(`${API}/runner/git/push-pr`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({projectId:focusedId, branch, base, title, body:prBody, remote:'origin'})
+    });
+    if(!r.ok){ const e=await r.json(); throw new Error(e.detail||r.statusText); }
+    const result=await r.json();
+    let html='<div class="pr-result"><div style="color:var(--green);font-size:14px;font-weight:700;margin-bottom:8px">✅ Committed & PR Created</div>';
+    if(result.pr_url) html+='<div>PR: <a href="'+esc(result.pr_url)+'" target="_blank">'+esc(result.pr_url)+'</a></div>';
+    html+='</div>';
+    createWindow('commit','🚀 PR Created',html,{width:500,height:250});
+    addActivity('✅','PR created: '+title);
+  }catch(e){
+    addActivity('❌','Commit & PR failed: '+e.message);
+    alert('Failed: '+e.message);
+  }
+}
+
+// ═══ USAGE / BUDGET ══════════════════════════════════════════════════════
+function toggleUsage(){
+  usageOpen=!usageOpen;
+  const overlay=document.getElementById('usageOverlay');
+  if(usageOpen){ overlay.classList.add('open'); loadUsageData(); }
+  else{ overlay.classList.remove('open'); }
+}
+
+async function loadUsageData(){
+  const body=document.getElementById('usageBody');
+  body.innerHTML='<div style="color:var(--muted);text-align:center;padding:20px">Loading usage data...</div>';
+
+  try{
+    const [limitsR, modelsR, usageR] = await Promise.all([
+      fetch(`${API}/usage/limits`).then(r=>r.json()).catch(()=>null),
+      fetch(`${API}/usage/models`).then(r=>r.json()).catch(()=>null),
+      fetch(`${API}/usage`).then(r=>r.json()).catch(()=>null),
+    ]);
+
+    let html='';
+
+    // Rate limits card
+    if(limitsR){
+      const session = limitsR.session_5h || {};
+      const weekly = limitsR.weekly_7d || {};
+      html+=renderUsageLimitCard('Session (5h window)', session);
+      html+=renderUsageLimitCard('Weekly (7d window)', weekly);
+    }
+
+    // Model breakdown
+    if(modelsR && modelsR.model_breakdown && modelsR.model_breakdown.length){
+      html+='<div class="usage-card"><div class="usage-card-title">Model Breakdown</div><div class="usage-models">';
+      const models=modelsR.model_breakdown.slice(0,6);
+      for(const m of models){
+        html+=`<div class="usage-model-item">
+          <div class="model-name">${esc(m.model||'unknown')}</div>
+          <div class="model-tokens">${fmt(m.total_tokens||0)} tokens</div>
+          <div style="font-size:9px;color:var(--muted)">${m.request_count||0} requests</div>
+        </div>`;
+      }
+      html+='</div></div>';
+    }
+
+    // Totals + insights
+    if(usageR && usageR.totals){
+      const t=usageR.totals;
+      html+='<div class="usage-card"><div class="usage-card-title">Totals</div>';
+      html+='<div class="usage-stat"><span>Sessions</span><span class="val">'+fmt(t.total_sessions||0)+'</span></div>';
+      html+='<div class="usage-stat"><span>Total Tokens</span><span class="val">'+fmt(t.total_tokens||0)+'</span></div>';
+      html+='<div class="usage-stat"><span>Input Tokens</span><span class="val">'+fmt(t.total_input_tokens||0)+'</span></div>';
+      html+='<div class="usage-stat"><span>Output Tokens</span><span class="val">'+fmt(t.total_output_tokens||0)+'</span></div>';
+      html+='</div>';
+    }
+    if(usageR && usageR.insights && usageR.insights.length){
+      html+='<div class="usage-card"><div class="usage-card-title">Insights</div>';
+      for(const ins of usageR.insights){
+        html+=`<div style="font-size:11px;color:var(--text);padding:4px 0;border-bottom:1px solid var(--border)">${esc(ins)}</div>`;
+      }
+      html+='</div>';
+    }
+
+    body.innerHTML=html||'<div class="mem-empty">No usage data available</div>';
+  }catch(e){
+    body.innerHTML='<div style="color:var(--red);text-align:center;padding:20px">Failed to load usage data: '+esc(e.message)+'</div>';
+  }
+}
+
+function renderUsageLimitCard(label, data){
+  const pct = data.percent_used!=null ? Math.min(100,Math.round(data.percent_used)) : 0;
+  const cls = pct>=90?'crit':pct>=70?'warn':'ok';
+  const tokens = fmt(data.tokens_used||0);
+  const cap = fmt(data.estimated_cap||0);
+  const reset = data.resets_in||'—';
+  let html=`<div class="usage-card">
+    <div class="usage-card-title">${esc(label)}</div>
+    <div class="usage-stat"><span>${pct}% used</span><span class="val">${tokens} / ${cap}</span></div>
+    <div class="usage-bar-wrap"><div class="usage-bar ${cls}" style="width:${pct}%"></div></div>
+    <div class="usage-stat"><span>Resets in</span><span class="val">${esc(String(reset))}</span></div>
+  </div>`;
+  return html;
+}
+
+// ═══ ORCHESTRATOR ═══════════════════════════════════════════════════════
+let orchAbort = null;
+
+function toggleOrchestrator(){
+  orchOpen=!orchOpen;
+  const overlay=document.getElementById('orchOverlay');
+  if(orchOpen){ overlay.classList.add('open'); }
+  else{ overlay.classList.remove('open'); if(orchAbort){orchAbort.abort();orchAbort=null;} }
+}
+
+async function runMission(){
+  const input=document.getElementById('orchInput');
+  const task=input.value.trim();
+  if(!task){ alert('Enter a mission description'); return; }
+
+  const btn=document.getElementById('orchRunBtn');
+  const status=document.getElementById('orchStatus');
+  const body=document.getElementById('orchBody');
+  btn.disabled=true;
+  btn.textContent='⏳ Running...';
+  status.textContent='Starting orchestrator...';
+  body.innerHTML='';
+
+  orchAbort=new AbortController();
+  addActivity('⚡','Mission started: '+task.substring(0,60));
+
+  try{
+    const response = await fetch(`${API}/orchestrator/stream`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({task, use_memory:true}),
+      signal:orchAbort.signal
+    });
+
+    if(!response.ok){
+      const e=await response.json();
+      throw new Error(e.detail||response.statusText);
+    }
+
+    const reader=response.body.getReader();
+    const decoder=new TextDecoder();
+    let buffer='';
+
+    while(true){
+      const {done,value}=await reader.read();
+      if(done) break;
+      buffer+=decoder.decode(value,{stream:true});
+      const lines=buffer.split('\n');
+      buffer=lines.pop()||'';
+
+      let eventType='';
+      for(const line of lines){
+        if(line.startsWith('event: ')){
+          eventType=line.substring(7).trim();
+        } else if(line.startsWith('data: ')){
+          try{
+            const parsed=JSON.parse(line.substring(6));
+            if(eventType==='phase'){
+              const phaseClass=parsed.phase||'';
+              status.textContent='Phase: '+parsed.phase;
+              body.innerHTML+=`<div class="orch-phase">
+                <div class="orch-phase-title ${escAttr(phaseClass)}">${getPhaseIcon(parsed.phase)} ${esc(parsed.phase)}</div>
+                <div class="orch-phase-detail">${esc(parsed.detail||'')}</div>
+              </div>`;
+              body.scrollTop=body.scrollHeight;
+            } else if(eventType==='subtask'){
+              status.textContent='Subtask: '+parsed.agent+' - '+(parsed.status||'');
+              body.innerHTML+=`<div class="orch-subtask">
+                <div class="orch-subtask-header">
+                  <span class="agent-tag">${esc(parsed.agent||'?')}</span>
+                  <span>${esc(parsed.task||'')}</span>
+                  <span class="status-tag ${escAttr(parsed.status||'')}">${esc(parsed.status||'')}</span>
+                </div>
+                ${parsed.result?'<div class="orch-subtask-result">'+esc(parsed.result)+'</div>':''}
+              </div>`;
+              body.scrollTop=body.scrollHeight;
+            } else if(eventType==='done'){
+              status.textContent='Mission complete!';
+              body.innerHTML+=`<div class="orch-final">
+                <div class="orch-final-title">✅ Final Output</div>
+                <div class="orch-final-text">${esc(parsed.final_output||'(no output)')}</div>
+              </div>`;
+              body.scrollTop=body.scrollHeight;
+              addActivity('✅','Mission complete');
+            } else if(eventType==='error'){
+              status.textContent='Error';
+              body.innerHTML+=`<div class="orch-phase"><div class="orch-phase-title error">❌ Error</div><div class="orch-phase-detail">${esc(parsed.detail||'Unknown error')}</div></div>`;
+              addActivity('❌','Mission error: '+(parsed.detail||''));
+            }
+          }catch(e){}
+        }
+      }
+    }
+  }catch(e){
+    if(e.name==='AbortError'){
+      status.textContent='Cancelled';
+      addActivity('🛑','Mission cancelled');
+    }else{
+      status.textContent='Error: '+e.message;
+      body.innerHTML+=`<div class="orch-phase"><div class="orch-phase-title error">❌ Error</div><div class="orch-phase-detail">${esc(e.message)}</div></div>`;
+      addActivity('❌','Mission error: '+e.message);
+    }
+  }finally{
+    btn.disabled=false;
+    btn.textContent='▶ Run Mission';
+    orchAbort=null;
+  }
+}
+
+function getPhaseIcon(phase){
+  const icons={starting:'🔄',planning:'📋',planned:'📋',executing:'⚡',reviewing:'🔍',synthesizing:'🔧',done:'✅'};
+  return icons[phase]||'▶';
+}
+
+// ═══ MEMORY ═════════════════════════════════════════════════════════════
+function toggleMemory(){
+  memOpen=!memOpen;
+  const overlay=document.getElementById('memOverlay');
+  if(memOpen){
+    overlay.classList.add('open');
+    if(!agentList.length) loadAgentList();
+    else loadMemories();
+  }else{
+    overlay.classList.remove('open');
+  }
+}
+
+async function loadAgentList(){
+  try{
+    const r=await fetch(`${API}/agents`);
+    const data=await r.json();
+    agentList=(data.agents||[]).map(a=>a.id);
+  }catch(e){ agentList=['manager','frontend','backend','tester']; }
+
+  // Populate both agent selectors
+  const memSel=document.getElementById('memAgentSelect');
+  const chatSel=document.getElementById('agentSelect');
+  if(memSel){
+    memSel.innerHTML=agentList.map((a,i)=>`<option value="${escAttr(a)}" ${i===0?'selected':''}>${esc(a)}</option>`).join('');
+  }
+  if(chatSel){
+    const current=chatSel.value;
+    chatSel.innerHTML=agentList.map(a=>`<option value="${escAttr(a)}" ${a===current?'selected':''}>${esc(a)}</option>`).join('');
+  }
+  loadMemories();
+}
+
+async function loadMemories(){
+  const agentId=document.getElementById('memAgentSelect')?.value;
+  const body=document.getElementById('memBody');
+  if(!agentId){ body.innerHTML='<div class="mem-empty">Select an agent</div>'; return; }
+  body.innerHTML='<div class="mem-empty">Loading...</div>';
+
+  try{
+    const r=await fetch(`${API}/memory/${agentId}`);
+    const data=await r.json();
+    const memories=data.memories||[];
+    const stats=data.stats||{};
+
+    if(!memories.length){
+      body.innerHTML='<div class="mem-empty">No memories for '+esc(agentId)+'</div>';
+      if(stats.count!=null) body.innerHTML+='<div class="mem-stats">Total: '+stats.count+'</div>';
+      return;
+    }
+
+    let html='';
+    if(stats.count!=null) html+='<div class="mem-stats">Total: '+stats.count+' memories</div>';
+    for(const m of memories){
+      const content=typeof m==='string'?m:(m.memory||m.content||JSON.stringify(m));
+      const meta=m.created_at?'<div class="mem-meta"><span>'+timeAgo(m.created_at)+'</span></div>':'';
+      html+=`<div class="mem-item">${esc(content)}${meta}</div>`;
+    }
+    body.innerHTML=html;
+  }catch(e){
+    body.innerHTML='<div class="mem-empty" style="color:var(--red)">Error: '+esc(e.message)+'</div>';
+  }
+}
+
+async function searchMemories(){
+  const agentId=document.getElementById('memAgentSelect')?.value;
+  const query=document.getElementById('memSearchInput')?.value.trim();
+  const body=document.getElementById('memBody');
+  if(!agentId||!query){ if(!query)loadMemories(); return; }
+  body.innerHTML='<div class="mem-empty">Searching...</div>';
+
+  try{
+    const r=await fetch(`${API}/memory/search`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({agent_id:agentId, query, limit:20})
+    });
+    const data=await r.json();
+    const results=data.results||[];
+    if(!results.length){ body.innerHTML='<div class="mem-empty">No results for "'+esc(query)+'"</div>'; return; }
+
+    let html='<div class="mem-stats">Search: '+results.length+' result(s)</div>';
+    for(const m of results){
+      const content=typeof m==='string'?m:(m.memory||m.content||JSON.stringify(m));
+      const score=m.score!=null?'<span>score: '+(m.score).toFixed(2)+'</span>':'';
+      html+=`<div class="mem-item">${esc(content)}<div class="mem-meta">${score}</div></div>`;
+    }
+    body.innerHTML=html;
+  }catch(e){
+    body.innerHTML='<div class="mem-empty" style="color:var(--red)">Search failed: '+esc(e.message)+'</div>';
+  }
+}
+
+async function addMemory(){
+  const agentId=document.getElementById('memAgentSelect')?.value;
+  const input=document.getElementById('memAddInput');
+  const content=input?.value.trim();
+  if(!agentId||!content) return;
+  input.value='';
+
+  try{
+    await fetch(`${API}/memory/add`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({agent_id:agentId, content})
+    });
+    addActivity('🧠','Memory added for '+agentId);
+    loadMemories();
+  }catch(e){
+    alert('Failed to add memory: '+e.message);
+  }
+}
+
+async function clearMemories(){
+  const agentId=document.getElementById('memAgentSelect')?.value;
+  if(!agentId) return;
+  if(!confirm('Clear ALL memories for '+agentId+'? This cannot be undone.')) return;
+
+  try{
+    await fetch(`${API}/memory/${agentId}`,{method:'DELETE'});
+    addActivity('🗑️','Memories cleared for '+agentId);
+    loadMemories();
+  }catch(e){
+    alert('Failed to clear memories: '+e.message);
+  }
+}
+
+// ═══ ESCAPE KEY HANDLER ═══════════════════════════════════════════════════
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    if(boardOpen) toggleTaskBoard();
+    else if(usageOpen) toggleUsage();
+    else if(orchOpen) toggleOrchestrator();
+    else if(memOpen) toggleMemory();
+  }
+});
+
 // ═══ REFRESH ═══════════════════════════════════════════════════════════════
 async function refreshAll(){
   addActivity('🔄','Refreshing all data...');
-  await Promise.all([loadProjects(),pollRunner()]);
+  await Promise.all([loadProjects(),pollRunner(),pollApiStatus()]);
   if(runnerOnline) await fetchAllDevStates();
   if(focusedId) await refreshFocused();
   addActivity('✅','Refresh complete');
@@ -1447,11 +2078,14 @@ async function refreshAll(){
 
 // ═══ INIT ════════════════════════════════════════════════════════════════
 async function init(){
+  await pollApiStatus();
   await pollRunner();
   await loadProjects();
+  await loadAgentList();
   if(runnerOnline) await fetchAllDevStates();
   connectHealthSSE();
   // Polling
+  setInterval(pollApiStatus, 15000);
   setInterval(pollRunner, 10000);
   setInterval(()=>{ if(runnerOnline) fetchAllDevStates(); }, 30000);
   setInterval(loadProjects, 60000);
