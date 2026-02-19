@@ -10,8 +10,6 @@ Validates backend endpoints that the Workshop UI wires up:
 
 from __future__ import annotations
 
-import json
-
 import pytest
 from fastapi.testclient import TestClient
 
@@ -286,6 +284,11 @@ class TestWorkshopHTML:
     def test_has_health_sse_init_handler(self):
         assert "addEventListener('init'" in self.html
 
+    def test_health_sse_init_handles_object_format(self):
+        """Init handler should treat data as object keyed by project_id, not array."""
+        assert "typeof data==='object'" in self.html
+        assert "Object.keys(data)" in self.html
+
     def test_has_escattr_xss_fix(self):
         assert "escAttr" in self.html
 
@@ -303,3 +306,83 @@ class TestWorkshopHTML:
 
     def test_bb_health_update(self):
         assert "updateBbHealth" in self.html
+
+    def test_file_tree_uses_data_attributes(self):
+        """File tree should use data-filepath attributes, not inline onclick strings."""
+        assert 'data-filepath="' in self.html
+        assert "el.dataset.filepath" in self.html
+
+    def test_pr_url_field_handles_both_cases(self):
+        """PR result handler should accept both prUrl and pr_url field names."""
+        assert "result.prUrl||result.pr_url" in self.html
+
+    def test_lastcommit_handles_object(self):
+        """Center header should handle lastCommit as string or object."""
+        assert "typeof ds.lastCommit==='string'" in self.html
+
+    def test_usage_card_shows_status_label(self):
+        """Usage limit cards should show CRITICAL/WARNING/OK status."""
+        assert "CRITICAL" in self.html
+        assert "WARNING" in self.html
+
+    def test_dirty_dialog_is_clear(self):
+        """Dirty working tree dialog should have clear OK=proceed, Cancel=go back."""
+        assert "Click OK to push anyway" in self.html
+
+
+# ── Health SSE init event format tests ───────────────────────────────
+
+
+class TestHealthSSEFormat:
+    """Verify health SSE init payload matches what the UI expects."""
+
+    def test_health_store_get_all_latest_returns_dict(self):
+        """HealthStore.get_all_latest() should return a dict (not array).
+
+        This is what gets sent as the SSE init event payload. The JS handler
+        expects typeof data === 'object' with Object.keys(data) as project IDs.
+        """
+        from src.health.engine import HealthStore
+        store = HealthStore()
+        try:
+            latest = store.get_all_latest()
+            assert isinstance(latest, dict), "get_all_latest should return dict keyed by project_id"
+        finally:
+            store.close()
+
+
+# ── Runner status endpoint tests ─────────────────────────────────────
+
+
+class TestRunnerStatus:
+    """Runner status endpoint tests."""
+
+    def test_runner_status_returns_structure(self, client_with_runner):
+        """GET /runner/status should return proper RunnerState fields."""
+        resp = client_with_runner.get("/api/runner/status")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "online" in data
+        assert "last_seen" in data
+        assert "platform" in data
+        assert isinstance(data["online"], bool)
+
+    def test_cmd_requires_runner_online(self, client_with_runner):
+        """POST /runner/cmd should 503 when runner offline."""
+        resp = client_with_runner.post("/api/runner/cmd", json={
+            "projectId": "test",
+            "command": "echo hello",
+        })
+        assert resp.status_code == 503
+
+    def test_git_status_requires_runner_online(self, client_with_runner):
+        """GET /runner/git/status should 503 when runner offline."""
+        resp = client_with_runner.get("/api/runner/git/status", params={"projectId": "test"})
+        assert resp.status_code == 503
+
+    def test_dev_state_returns_offline_gracefully(self, client_with_runner):
+        """GET /runner/dev-state should return offline status without error."""
+        resp = client_with_runner.get("/api/runner/dev-state/test")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "offline"

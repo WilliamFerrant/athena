@@ -757,7 +757,11 @@ function updateCenterHeader(){
     parts+=`<span class="branch-tag">⎇ ${esc(ds.branch||'?')}</span>`;
     if(ds.dirtyCount>0) parts+=`<span class="dirty-tag">${ds.dirtyCount} dirty</span>`;
     else parts+=`<span style="color:var(--green);font-size:10px">✓ clean</span>`;
-    if(ds.lastCommit) parts+=`<span style="color:var(--muted);font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(ds.lastCommit.substring(0,40))}</span>`;
+    if(ds.lastCommit){
+      // lastCommit can be a string or an object {sha, message, author, date}
+      const commitText=typeof ds.lastCommit==='string'?ds.lastCommit:(ds.lastCommit.message||ds.lastCommit.sha||'');
+      if(commitText) parts+=`<span style="color:var(--muted);font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(commitText.substring(0,40))}</span>`;
+    }
   }else if(runnerOnline){
     parts+=`<span style="color:var(--muted);font-size:10px">no local path</span>`;
   }else{
@@ -846,7 +850,7 @@ function renderFileTree(){
     html+=`<div class="ft-dir">📁 ${esc(dir)}</div>`;
     for(const f of groups[dir]){
       const icon=f.status==='A'?'🟢':f.status==='D'?'🔴':f.status==='?'?'🟡':'📝';
-      html+=`<div class="ft-file" onclick="openFileDiff('${escAttr(f.path)}')" title="${esc(f.path)}">
+      html+=`<div class="ft-file" data-filepath="${escAttr(f.path)}" title="${escAttr(f.path)}">
         <span class="ficon">${icon}</span>
         <span class="fname">${esc(f.name)}</span>
         <span class="fstat ${f.status}">${f.status}</span>
@@ -854,6 +858,10 @@ function renderFileTree(){
     }
   }
   container.innerHTML=html;
+  // Use event delegation for file clicks — safe for paths with quotes/special chars
+  container.querySelectorAll('.ft-file[data-filepath]').forEach(el=>{
+    el.addEventListener('click',()=>openFileDiff(el.dataset.filepath));
+  });
 }
 
 // ═══ FLOATING WINDOW MANAGER ══════════════════════════════════════════════
@@ -1381,11 +1389,14 @@ function connectHealthSSE(){
   healthSSE.addEventListener('init',e=>{
     try{
       const data=JSON.parse(e.data);
-      if(Array.isArray(data) && data.length){
-        addActivity('❤️',`Health init: ${data.length} check(s) loaded`);
+      // init payload is an object keyed by project_id, not an array
+      if(data && typeof data==='object'){
+        const projectIds=Object.keys(data);
+        const checkCount=projectIds.reduce((sum,pid)=>(data[pid]||[]).length+sum,0);
+        addActivity('❤️',`Health init: ${checkCount} check(s) across ${projectIds.length} project(s)`);
         loadProjects();
       }
-    }catch(err){}
+    }catch(err){ console.warn('Health SSE init parse error:',err); }
   });
   healthSSE.addEventListener('check',e=>{
     try{
@@ -1639,13 +1650,10 @@ async function pushAndPR(){
     return;
   }
 
-  // Safety: refuse if dirty without confirm
+  // Safety: warn if dirty working tree
   if(ds.dirtyCount>0){
-    if(!confirm('You have '+ds.dirtyCount+' uncommitted change(s). Stage and commit before pushing?\n\nClick OK to abort and commit first, or Cancel to push anyway.')){
-      // User said Cancel = push anyway (risky but allowed)
-    } else {
-      return; // User said OK = go commit first
-    }
+    const choice=confirm('You have '+ds.dirtyCount+' uncommitted change(s).\n\nClick OK to push anyway (uncommitted changes will NOT be included), or Cancel to go back and commit first.');
+    if(!choice) return; // User chose to go back and commit first
   }
 
   const title = prompt('PR Title:', branch.replace(/[-_]/g,' '));
@@ -1668,10 +1676,11 @@ async function pushAndPR(){
       throw new Error(e.detail||r.statusText);
     }
     const result=await r.json();
+    const prUrl=result.prUrl||result.pr_url||'';
     // Show result in floating window
     let html='<div class="pr-result">';
     html+='<div style="color:var(--green);font-size:14px;font-weight:700;margin-bottom:8px">✅ Push & PR Complete</div>';
-    if(result.pr_url) html+='<div>PR URL: <a href="'+esc(result.pr_url)+'" target="_blank">'+esc(result.pr_url)+'</a></div>';
+    if(prUrl) html+='<div>PR URL: <a href="'+esc(prUrl)+'" target="_blank">'+esc(prUrl)+'</a></div>';
     html+='<div>Branch: <span class="pr-url">'+esc(branch)+' → '+esc(base)+'</span></div>';
     if(result.stdout) html+='<div style="margin-top:8px;font-family:var(--font-mono);font-size:10px;color:var(--muted);white-space:pre-wrap">'+esc(result.stdout)+'</div>';
     html+='</div>';
@@ -1723,8 +1732,9 @@ async function confirmCommitAndPR(){
     });
     if(!r.ok){ const e=await r.json(); throw new Error(e.detail||r.statusText); }
     const result=await r.json();
+    const prUrl2=result.prUrl||result.pr_url||'';
     let html='<div class="pr-result"><div style="color:var(--green);font-size:14px;font-weight:700;margin-bottom:8px">✅ Committed & PR Created</div>';
-    if(result.pr_url) html+='<div>PR: <a href="'+esc(result.pr_url)+'" target="_blank">'+esc(result.pr_url)+'</a></div>';
+    if(prUrl2) html+='<div>PR: <a href="'+esc(prUrl2)+'" target="_blank">'+esc(prUrl2)+'</a></div>';
     html+='</div>';
     createWindow('commit','🚀 PR Created',html,{width:500,height:250});
     addActivity('✅','PR created: '+title);
@@ -1804,11 +1814,13 @@ async function loadUsageData(){
 function renderUsageLimitCard(label, data){
   const pct = data.percent_used!=null ? Math.min(100,Math.round(data.percent_used)) : 0;
   const cls = pct>=90?'crit':pct>=70?'warn':'ok';
+  const statusLabel = cls==='crit'?'CRITICAL':cls==='warn'?'WARNING':'OK';
+  const statusColor = cls==='crit'?'var(--red)':cls==='warn'?'var(--yellow)':'var(--green)';
   const tokens = fmt(data.tokens_used||0);
   const cap = fmt(data.estimated_cap||0);
   const reset = data.resets_in||'—';
-  let html=`<div class="usage-card">
-    <div class="usage-card-title">${esc(label)}</div>
+  let html=`<div class="usage-card" style="border-color:${pct>=90?'var(--red)':pct>=70?'var(--yellow)':'var(--border)'}">
+    <div class="usage-card-title" style="display:flex;justify-content:space-between;align-items:center">${esc(label)}<span style="color:${statusColor};font-size:9px;font-weight:800;letter-spacing:.5px">${statusLabel}</span></div>
     <div class="usage-stat"><span>${pct}% used</span><span class="val">${tokens} / ${cap}</span></div>
     <div class="usage-bar-wrap"><div class="usage-bar ${cls}" style="width:${pct}%"></div></div>
     <div class="usage-stat"><span>Resets in</span><span class="val">${esc(String(reset))}</span></div>
