@@ -230,6 +230,31 @@ a:hover{text-decoration:underline}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 ::-webkit-scrollbar-thumb:hover{background:var(--muted)}
 
+/* ═══ PAGE TRANSITION ═════════════════════════════════════════════════════ */
+@keyframes pageExit{
+  from{opacity:1;transform:scale(1);filter:blur(0)}
+  to{opacity:0;transform:scale(0.97);filter:blur(3px)}
+}
+@keyframes pageEnter{
+  from{opacity:0;transform:scale(1.02);filter:blur(2px)}
+  to{opacity:1;transform:scale(1);filter:blur(0)}
+}
+@keyframes tagMorph{
+  0%{opacity:0;transform:translateY(-4px) scale(0.9)}
+  100%{opacity:1;transform:translateY(0) scale(1)}
+}
+@keyframes topbarSlide{
+  from{opacity:0.5;transform:translateY(-2px)}
+  to{opacity:1;transform:translateY(0)}
+}
+body.page-exit-active>*:not(.topbar){animation:pageExit 300ms ease forwards;pointer-events:none}
+body.page-exit-active .topbar{transition:opacity 250ms ease;opacity:0.6}
+body.page-exit-active .topbar .logo-tag{transition:transform 200ms ease,opacity 200ms ease;transform:scale(0.85);opacity:0}
+body.page-enter-active>*{opacity:0}
+body.page-enter-ready .topbar{animation:topbarSlide 200ms ease-out forwards}
+body.page-enter-ready .topbar .logo-tag{animation:tagMorph 350ms ease-out 50ms forwards;opacity:0}
+body.page-enter-ready>*:not(.topbar){animation:pageEnter 350ms ease-out 100ms forwards;opacity:0}
+
 /* ═══ TASK BOARD OVERLAY ═════════════════════════════════════════════════ */
 .board-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:900;display:none;align-items:stretch;justify-content:center;padding:40px 20px}
 .board-overlay.open{display:flex}
@@ -384,7 +409,7 @@ a:hover{text-decoration:underline}
   <div class="topbar-right">
     <div class="status-pill ok" id="apiStatus"><span class="sd"></span><span>API</span></div>
     <div class="status-pill off" id="runnerStatus"><span class="sd"></span><span>Runner</span><span id="runnerInfo" style="font-size:9px">—</span></div>
-    <a href="/" class="tb-btn">&#9664; Bridge</a>
+    <button class="tb-btn" onclick="navigateToBridge()">&#9664; Bridge</button>
     <button class="tb-btn" id="tbBoard" onclick="toggleTaskBoard()">&#9744; Board</button>
     <button class="tb-btn" onclick="toggleUsage()">&#128200; Usage</button>
     <button class="tb-btn" onclick="toggleOrchestrator()">&#9889; Mission</button>
@@ -558,6 +583,29 @@ a:hover{text-decoration:underline}
      ═══════════════════════════════════════════════════════════════════════════ -->
 <script>
 const API = '/api';
+
+// ═══ PAGE TRANSITIONS ═══════════════════════════════════════════════════════
+function navigateToBridge() {
+  if (document.body.classList.contains('page-exit-active')) return;
+  sessionStorage.setItem('pageTransition', 'toBridge');
+  document.body.classList.add('page-exit-active');
+  setTimeout(() => { window.location.href = '/'; }, 320);
+}
+
+// On load: check if arriving from Bridge
+(function checkEntryTransition() {
+  if (sessionStorage.getItem('pageTransition') === 'toWorkshop') {
+    sessionStorage.removeItem('pageTransition');
+    document.body.classList.add('page-enter-active');
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.body.classList.remove('page-enter-active');
+        document.body.classList.add('page-enter-ready');
+        setTimeout(() => document.body.classList.remove('page-enter-ready'), 500);
+      });
+    });
+  }
+})();
 
 // ═══ STATE ══════════════════════════════════════════════════════════════════
 let projects = [];

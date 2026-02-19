@@ -570,6 +570,53 @@ input:focus,textarea:focus,select:focus { outline:none;border-color:var(--accent
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* ═══ PAGE TRANSITION ═════════════════════════════════════════════════════ */
+@keyframes pageExit {
+  from { opacity: 1; transform: scale(1); filter: blur(0); }
+  to   { opacity: 0; transform: scale(0.97); filter: blur(3px); }
+}
+@keyframes pageEnter {
+  from { opacity: 0; transform: scale(1.02); filter: blur(2px); }
+  to   { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+@keyframes tagMorph {
+  0%   { opacity: 0; transform: translateY(-4px) scale(0.9); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes topbarSlide {
+  from { opacity: 0.5; transform: translateY(-2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+body.page-exit-active > *:not(.topbar) {
+  animation: pageExit 300ms ease forwards;
+  pointer-events: none;
+}
+body.page-exit-active .topbar {
+  transition: opacity 250ms ease;
+  opacity: 0.6;
+}
+body.page-exit-active .topbar .logo-tag {
+  transition: transform 200ms ease, opacity 200ms ease;
+  transform: scale(0.85);
+  opacity: 0;
+}
+
+body.page-enter-active > * {
+  opacity: 0;
+}
+body.page-enter-ready .topbar {
+  animation: topbarSlide 200ms ease-out forwards;
+}
+body.page-enter-ready .topbar .logo-tag {
+  animation: tagMorph 350ms ease-out 50ms forwards;
+  opacity: 0;
+}
+body.page-enter-ready > *:not(.topbar) {
+  animation: pageEnter 350ms ease-out 100ms forwards;
+  opacity: 0;
+}
 </style>
 </head>
 <body>
@@ -592,7 +639,7 @@ input:focus,textarea:focus,select:focus { outline:none;border-color:var(--accent
       <span class="runner-label">Runner</span>
       <span class="runner-time" id="runnerLastSeen">—</span>
     </div>
-    <button class="topbar-btn" id="workshopBtn" onclick="toggleWorkshop()">
+    <button class="topbar-btn" id="workshopBtn" onclick="navigateToWorkshop()">
       <span class="icon">&#9881;</span> Workshop
     </button>
     <button class="topbar-btn" onclick="refreshAll()">
@@ -975,8 +1022,33 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
-// ═══ WORKSHOP TOGGLE ══════════════════════════════════════════════════════
+// ═══ PAGE TRANSITIONS ═════════════════════════════════════════════════════
 
+function navigateToWorkshop() {
+  // Prevent double-clicks
+  if (document.body.classList.contains('page-exit-active')) return;
+  sessionStorage.setItem('pageTransition', 'toWorkshop');
+  document.body.classList.add('page-exit-active');
+  setTimeout(() => { window.location.href = '/workshop'; }, 320);
+}
+
+// On load: check if arriving back from Workshop
+(function checkEntryTransition() {
+  if (sessionStorage.getItem('pageTransition') === 'toBridge') {
+    sessionStorage.removeItem('pageTransition');
+    document.body.classList.add('page-enter-active');
+    // Allow a frame for the hidden state to apply, then trigger enter
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.body.classList.remove('page-enter-active');
+        document.body.classList.add('page-enter-ready');
+        setTimeout(() => document.body.classList.remove('page-enter-ready'), 500);
+      });
+    });
+  }
+})();
+
+// Keep toggleWorkshop for the in-page overlay (used by selectProject)
 function toggleWorkshop() {
   const overlay = document.getElementById('workshopOverlay');
   const btn = document.getElementById('workshopBtn');
@@ -984,7 +1056,7 @@ function toggleWorkshop() {
   btn.classList.toggle('active');
 }
 
-// Close workshop with Escape
+// Close workshop overlay with Escape
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     const overlay = document.getElementById('workshopOverlay');

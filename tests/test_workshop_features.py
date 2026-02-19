@@ -329,6 +329,25 @@ class TestWorkshopHTML:
         """Dirty working tree dialog should have clear OK=proceed, Cancel=go back."""
         assert "Click OK to push anyway" in self.html
 
+    def test_has_page_transition_css(self):
+        """Workshop should have page transition CSS animations."""
+        assert "pageExit" in self.html
+        assert "pageEnter" in self.html
+        assert "page-exit-active" in self.html
+        assert "page-enter-ready" in self.html
+
+    def test_has_navigate_to_bridge(self):
+        """Workshop should have navigateToBridge function for smooth transition."""
+        assert "navigateToBridge" in self.html
+        assert "sessionStorage" in self.html
+        assert "pageTransition" in self.html
+
+    def test_back_to_bridge_uses_transition(self):
+        """Back to Bridge button should use JS transition, not plain link."""
+        assert 'onclick="navigateToBridge()"' in self.html
+        # Should NOT have a plain <a href="/"> for the Bridge button
+        assert '<a href="/" class="tb-btn">' not in self.html
+
 
 # ── Health SSE init event format tests ───────────────────────────────
 
@@ -386,3 +405,50 @@ class TestRunnerStatus:
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "offline"
+
+
+# ── Page transition tests ────────────────────────────────────────────
+
+
+class TestPageTransitions:
+    """Verify both pages have matching page transition infrastructure."""
+
+    @pytest.fixture(autouse=True)
+    def load_both_pages(self):
+        import pathlib
+        base = pathlib.Path(__file__).parent.parent / "src" / "static"
+        self.bridge = (base / "index.html").read_text(encoding="utf-8")
+        self.workshop = (base / "workshop.html").read_text(encoding="utf-8")
+
+    def test_bridge_has_navigate_to_workshop(self):
+        """Bridge should have navigateToWorkshop function."""
+        assert "navigateToWorkshop" in self.bridge
+        assert "sessionStorage" in self.bridge
+
+    def test_bridge_workshop_button_uses_transition(self):
+        """Bridge Workshop button should call navigateToWorkshop, not toggleWorkshop."""
+        assert 'onclick="navigateToWorkshop()"' in self.bridge
+
+    def test_bridge_has_entry_transition(self):
+        """Bridge should handle entry from Workshop via sessionStorage."""
+        assert "toBridge" in self.bridge
+        assert "page-enter-active" in self.bridge
+        assert "page-enter-ready" in self.bridge
+
+    def test_workshop_has_entry_transition(self):
+        """Workshop should handle entry from Bridge via sessionStorage."""
+        assert "toWorkshop" in self.workshop
+        assert "page-enter-active" in self.workshop
+        assert "page-enter-ready" in self.workshop
+
+    def test_both_have_matching_css_animations(self):
+        """Both pages should define the same transition keyframes."""
+        for page in [self.bridge, self.workshop]:
+            assert "@keyframes pageExit" in page
+            assert "@keyframes pageEnter" in page
+            assert "@keyframes tagMorph" in page
+            assert "@keyframes topbarSlide" in page
+
+    def test_bridge_still_has_toggle_workshop(self):
+        """Bridge should still have toggleWorkshop for in-page overlay (used by selectProject)."""
+        assert "function toggleWorkshop()" in self.bridge
