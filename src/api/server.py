@@ -113,15 +113,14 @@ def create_app() -> FastAPI:
     app.include_router(runner_router, prefix="/api")
     app.include_router(task_router, prefix="/api")
 
-    # Serve dashboard at root
+    # Serve unified dashboard at root and /workshop (same SPA, mode toggled client-side)
     @app.get("/")
     async def dashboard():
         return FileResponse(STATIC_DIR / "index.html")
 
-    # Workshop Mode
     @app.get("/workshop")
     async def workshop():
-        return FileResponse(STATIC_DIR / "workshop.html")
+        return FileResponse(STATIC_DIR / "index.html")
 
     # Serve other static assets
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

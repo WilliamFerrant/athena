@@ -250,7 +250,7 @@ class TestWorkshopHTML:
     @pytest.fixture(autouse=True)
     def load_html(self):
         import pathlib
-        html_path = pathlib.Path(__file__).parent.parent / "src" / "static" / "workshop.html"
+        html_path = pathlib.Path(__file__).parent.parent / "src" / "static" / "index.html"
         self.html = html_path.read_text(encoding="utf-8")
 
     def test_has_push_pr_button(self):
@@ -417,8 +417,9 @@ class TestPageTransitions:
     def load_both_pages(self):
         import pathlib
         base = pathlib.Path(__file__).parent.parent / "src" / "static"
+        # Both Bridge and Workshop now live in the same unified page
         self.bridge = (base / "index.html").read_text(encoding="utf-8")
-        self.workshop = (base / "workshop.html").read_text(encoding="utf-8")
+        self.workshop = (base / "index.html").read_text(encoding="utf-8")
 
     def test_bridge_has_navigate_to_workshop(self):
         """Bridge should have navigateToWorkshop function."""
