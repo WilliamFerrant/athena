@@ -110,6 +110,11 @@ def create_app() -> FastAPI:
     async def dashboard():
         return FileResponse(STATIC_DIR / "index.html")
 
+    # Workshop Mode
+    @app.get("/workshop")
+    async def workshop():
+        return FileResponse(STATIC_DIR / "workshop.html")
+
     # Serve other static assets
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 

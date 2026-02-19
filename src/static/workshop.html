@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Athena — Workshop</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   CSS VARIABLES (shared with Bridge)
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --bg: #1a1a1a;
+  --surface: #222;
+  --surface2: #2a2a2a;
+  --surface3: #333;
+  --border: #3a3a3a;
+  --border-glow: #4a6a8a;
+  --text: #e8e6df;
+  --text-bright: #ffffff;
+  --muted: #8a8878;
+  --accent: #7ca6c4;
+  --accent2: #6893b3;
+  --accent-dim: #7ca6c415;
+  --accent-glow: #7ca6c440;
+  --green: #50b583;
+  --green-dim: #50b58320;
+  --yellow: #eab308;
+  --yellow-dim: #eab30820;
+  --red: #ef4444;
+  --red-dim: #ef444420;
+  --blue: #7ca6c4;
+  --blue-dim: #7ca6c420;
+  --orange: #f97316;
+  --orange-dim: #f9731620;
+  --cyan: #5eb8c4;
+  --cyan-dim: #5eb8c420;
+  --purple: #8b7ec6;
+  --purple-dim: #8b7ec620;
+  --pink: #d97aa0;
+  --font-mono: 'JetBrains Mono','Fira Code','Cascadia Code',monospace;
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Inter','Segoe UI',-apple-system,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ═══ TOP BAR ═══════════════════════════════════════════════════════════════ */
+.topbar{height:42px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 16px;flex-shrink:0;z-index:500}
+.topbar-left{display:flex;align-items:center;gap:12px}
+.logo{font-size:14px;font-weight:800;letter-spacing:2.5px;color:var(--text-bright);text-transform:uppercase}
+.logo-tag{font-size:9px;font-weight:700;letter-spacing:1px;background:var(--accent);color:var(--bg);padding:2px 8px;border-radius:3px}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.tb-btn{background:none;border:1px solid var(--border);color:var(--muted);padding:4px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;transition:all .2s;display:flex;align-items:center;gap:5px}
+.tb-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+.tb-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+.status-pill{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);padding:3px 10px;border-radius:5px;border:1px solid var(--border)}
+.status-pill.ok{border-color:var(--green-dim);background:var(--green-dim)}
+.status-pill.ok .sd{background:var(--green);box-shadow:0 0 6px var(--green)}
+.status-pill.off .sd{background:var(--muted)}
+.sd{width:6px;height:6px;border-radius:50%;transition:all .3s}
+.clock{font-size:11px;color:var(--muted);font-family:var(--font-mono);font-weight:500}
+
+/* ═══ MAIN 3-COL LAYOUT ═══════════════════════════════════════════════════ */
+.layout{flex:1;display:grid;grid-template-columns:260px 1fr 340px;overflow:hidden}
+
+/* ═══ LEFT SIDEBAR ════════════════════════════════════════════════════════ */
+.sidebar{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.sb-section{border-bottom:1px solid var(--border);display:flex;flex-direction:column}
+.sb-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--accent)}
+.sb-header .refresh{cursor:pointer;color:var(--muted);font-size:12px;transition:color .2s}
+.sb-header .refresh:hover{color:var(--accent)}
+.sb-body{overflow-y:auto}
+
+/* Project rows */
+.proj-row{display:flex;align-items:center;gap:8px;padding:7px 14px;cursor:pointer;transition:background .12s;border-left:3px solid transparent;font-size:12px}
+.proj-row:hover{background:var(--surface2)}
+.proj-row.active{background:var(--accent-dim);border-left-color:var(--accent)}
+.proj-row .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.dot.up{background:var(--green);box-shadow:0 0 4px var(--green)}
+.dot.degraded{background:var(--yellow);box-shadow:0 0 4px var(--yellow)}
+.dot.down{background:var(--red);box-shadow:0 0 4px var(--red);animation:pulse-dot 1.2s ease infinite}
+.dot.unknown{background:var(--muted)}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.4}}
+.proj-row .pname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-weight:500}
+.proj-row .pdetail{font-size:9px;color:var(--muted);white-space:nowrap}
+.proj-row .dev-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.dev-dot.live{background:var(--cyan);box-shadow:0 0 4px var(--cyan)}
+.dev-dot.off{background:var(--muted);opacity:.4}
+
+/* Health cards */
+.hcard{background:var(--surface2);border:1px solid var(--border);border-radius:7px;margin:0 10px 6px;padding:8px 10px;cursor:pointer;transition:border-color .2s}
+.hcard:hover{border-color:var(--accent)}
+.hcard.active{border-color:var(--accent);background:var(--accent-dim)}
+.hcard-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px}
+.hcard-name{font-size:12px;font-weight:600;color:var(--text-bright);display:flex;align-items:center;gap:5px}
+.hcard-badges{display:flex;gap:3px}
+.hbadge{font-size:8px;padding:1px 5px;border-radius:3px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.hbadge.up{background:var(--green-dim);color:var(--green)}
+.hbadge.down{background:var(--red-dim);color:var(--red)}
+.hbadge.degraded{background:var(--yellow-dim);color:var(--yellow)}
+.hbadge.unknown{background:#71717a22;color:var(--muted)}
+.hbadge.dev-on{background:var(--cyan-dim);color:var(--cyan)}
+.hbadge.dev-off{background:#71717a22;color:var(--muted)}
+.hbadge.dirty{background:var(--yellow-dim);color:var(--yellow)}
+.hcard-row{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--muted)}
+.hcard-row .branch{font-family:var(--font-mono);color:var(--cyan);font-weight:600}
+.hcard-row .time{margin-left:auto}
+
+/* ═══ CENTER AREA ═════════════════════════════════════════════════════════ */
+.center{display:flex;flex-direction:column;overflow:hidden;position:relative;background:var(--bg)}
+
+/* Center topbar */
+.center-header{height:38px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:10px;flex-shrink:0}
+.center-header .proj-label{font-size:13px;font-weight:700;color:var(--text-bright);flex:1}
+.center-header .branch-tag{font-family:var(--font-mono);font-size:11px;color:var(--cyan);background:var(--cyan-dim);padding:2px 8px;border-radius:4px}
+.center-header .dirty-tag{font-size:10px;color:var(--yellow);font-weight:600}
+.center-header .dev-url{font-size:10px;color:var(--green)}
+.ch-btn{background:none;border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:4px;cursor:pointer;font-size:10px;font-weight:600;transition:all .2s}
+.ch-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+.ch-btn:disabled{opacity:.3;cursor:not-allowed}
+
+/* Center body = file tree + window area */
+.center-body{flex:1;display:grid;grid-template-columns:240px 1fr;overflow:hidden}
+
+/* File tree */
+.file-tree{background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;font-size:12px}
+.ft-header{padding:8px 12px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.ft-header .ft-count{color:var(--muted);font-weight:500;text-transform:none;letter-spacing:0}
+.ft-empty{padding:14px;color:var(--muted);font-style:italic;font-size:11px;text-align:center}
+.ft-dir{padding:5px 12px;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;display:flex;align-items:center;gap:4px;margin-top:4px}
+.ft-file{display:flex;align-items:center;gap:6px;padding:4px 12px 4px 24px;cursor:pointer;transition:background .12s;font-family:var(--font-mono);font-size:11px}
+.ft-file:hover{background:var(--surface2)}
+.ft-file.active{background:var(--accent-dim);color:var(--accent)}
+.ft-file .ficon{font-size:10px;flex-shrink:0}
+.ft-file .fname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ft-file .fstat{font-size:9px;font-weight:700;flex-shrink:0}
+.ft-file .fstat.M{color:var(--yellow)}
+.ft-file .fstat.A{color:var(--green)}
+.ft-file .fstat.D{color:var(--red)}
+.ft-file .fstat.U{color:var(--orange)}
+
+/* Window area */
+.win-area{position:relative;overflow:hidden;background:var(--bg)}
+.win-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;font-style:italic}
+
+/* ═══ FLOATING WINDOWS ═══════════════════════════════════════════════════ */
+.float-win{position:absolute;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.5);display:flex;flex-direction:column;min-width:400px;min-height:250px;overflow:hidden;transition:box-shadow .15s}
+.float-win.focused{border-color:var(--accent);box-shadow:0 8px 32px rgba(0,0,0,.5),0 0 0 1px var(--accent)}
+.float-win.unfocused{opacity:.85}
+.fw-titlebar{height:32px;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 10px;cursor:move;flex-shrink:0;gap:8px}
+.fw-titlebar .fw-icon{font-size:12px}
+.fw-titlebar .fw-title{flex:1;font-size:11px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fw-titlebar .fw-close{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0 4px;transition:color .15s}
+.fw-titlebar .fw-close:hover{color:var(--red)}
+.fw-body{flex:1;overflow:auto;padding:0}
+
+/* Diff viewer inside window */
+.diff-view{font-family:var(--font-mono);font-size:11px;line-height:1.6;padding:0}
+.diff-hunk{color:var(--cyan);padding:4px 10px;background:var(--cyan-dim);font-weight:600;font-size:10px}
+.diff-file-header{color:var(--accent);padding:6px 10px;background:var(--accent-dim);font-weight:700;font-size:11px;border-bottom:1px solid var(--border)}
+.diff-line{padding:0 10px;white-space:pre-wrap;word-break:break-all}
+.diff-line.add{background:#22c55e12;color:#86efac}
+.diff-line.del{background:#ef444412;color:#fca5a5}
+.diff-line.ctx{color:var(--muted)}
+
+/* Terminal output inside window */
+.term-view{font-family:var(--font-mono);font-size:11px;line-height:1.5;padding:10px;color:var(--green);background:#111;min-height:100%;white-space:pre-wrap;word-break:break-all}
+.term-view.error{color:var(--red)}
+.term-view .term-cmd{color:var(--accent);font-weight:600;margin-bottom:4px}
+
+/* Commit viewer inside window */
+.commit-view{padding:16px}
+.commit-view label{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;font-weight:600}
+.commit-view input,.commit-view textarea{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:5px;font-family:inherit;font-size:12px;margin-bottom:12px}
+.commit-view input:focus,.commit-view textarea:focus{outline:none;border-color:var(--accent)}
+.commit-view textarea{min-height:80px;resize:vertical}
+.commit-view .file-list{max-height:150px;overflow-y:auto;font-family:var(--font-mono);font-size:11px;color:var(--muted);border:1px solid var(--border);border-radius:5px;padding:6px 10px;margin-bottom:12px;background:var(--bg)}
+.commit-view .cv-actions{display:flex;gap:8px;justify-content:flex-end}
+.cv-btn{padding:6px 16px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;border:none}
+.cv-btn.primary{background:var(--accent);color:var(--bg)}
+.cv-btn.primary:hover{background:var(--accent2)}
+.cv-btn.outline{background:none;border:1px solid var(--border);color:var(--muted)}
+.cv-btn.outline:hover{border-color:var(--accent);color:var(--accent)}
+.cv-btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* ═══ RIGHT PANEL (CHAT) ═════════════════════════════════════════════════ */
+.right-panel{background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.chat-header{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:6px}
+.chat-header-top{display:flex;align-items:center;justify-content:space-between}
+.chat-header-title{font-size:13px;font-weight:700;color:var(--text-bright)}
+.chat-clear{background:none;border:1px solid var(--border);color:var(--muted);padding:2px 8px;border-radius:3px;cursor:pointer;font-size:10px;transition:all .2s}
+.chat-clear:hover{border-color:var(--red);color:var(--red)}
+.chat-ctx{font-size:10px;color:var(--muted);line-height:1.4}
+.chat-ctx span{color:var(--text)}
+.chat-ctx .ctx-branch{color:var(--cyan);font-family:var(--font-mono)}
+.chat-ctx .ctx-url{color:var(--green)}
+.chat-messages{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.msg{max-width:90%;padding:8px 12px;border-radius:10px;font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.msg.user{align-self:flex-end;background:var(--accent);color:var(--bg);border-bottom-right-radius:3px;font-weight:500}
+.msg.assistant{align-self:flex-start;background:var(--surface2);border:1px solid var(--border);border-bottom-left-radius:3px}
+.msg .msg-time{font-size:8px;color:var(--muted);margin-top:3px;text-align:right}
+.msg.user .msg-time{color:rgba(0,0,0,.35)}
+.msg.streaming::after{content:'▌';animation:blink .8s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.chat-input-area{padding:10px 14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px}
+.chat-actions{display:flex;gap:6px;flex-wrap:wrap}
+.ca-btn{padding:4px 10px;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;transition:all .15s;border:1px solid var(--border);background:var(--surface2);color:var(--text)}
+.ca-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+.ca-btn:disabled{opacity:.3;cursor:not-allowed}
+.ca-btn.running{color:var(--yellow);border-color:var(--yellow);animation:pulse-dot 1.5s ease infinite}
+.chat-row{display:flex;gap:6px}
+.chat-input{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-size:12px;font-family:inherit;outline:none}
+.chat-input:focus{border-color:var(--accent)}
+.chat-send{width:36px;height:36px;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0}
+.chat-send:hover{background:var(--accent2)}
+.chat-send svg{fill:var(--bg);width:16px;height:16px}
+.chat-agent-row{display:flex;align-items:center;gap:6px}
+.chat-agent-sel{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:3px 6px;border-radius:4px;font-size:11px;outline:none}
+
+/* ═══ BOTTOM BAR ══════════════════════════════════════════════════════════ */
+.bottom-bar{height:24px;background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:12px;flex-shrink:0;font-size:10px;color:var(--muted)}
+.bb-item{display:flex;align-items:center;gap:4px}
+.bb-dot{width:5px;height:5px;border-radius:50%}
+
+/* ═══ SCROLLBAR ═══════════════════════════════════════════════════════════ */
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <span class="logo">Athena</span>
+    <span class="logo-tag">WORKSHOP</span>
+  </div>
+  <div class="topbar-right">
+    <div class="status-pill ok" id="apiStatus"><span class="sd"></span><span>API</span></div>
+    <div class="status-pill off" id="runnerStatus"><span class="sd"></span><span>Runner</span><span id="runnerInfo" style="font-size:9px">—</span></div>
+    <a href="/" class="tb-btn">&#9664; Bridge</a>
+    <button class="tb-btn" onclick="refreshAll()">&#8635; Refresh</button>
+    <span class="clock" id="clock"></span>
+  </div>
+</div>
+
+<!-- MAIN LAYOUT -->
+<div class="layout">
+
+  <!-- ─── LEFT SIDEBAR ──────────────────────────────────────────────── -->
+  <div class="sidebar">
+    <!-- Projects -->
+    <div class="sb-section" style="flex:1;overflow:hidden;display:flex;flex-direction:column">
+      <div class="sb-header">Projects <span class="refresh" onclick="loadProjects()">&#8635;</span></div>
+      <div class="sb-body" id="projectList" style="flex:1;overflow-y:auto"></div>
+    </div>
+    <!-- Health -->
+    <div class="sb-section" style="max-height:280px;overflow:hidden;display:flex;flex-direction:column">
+      <div class="sb-header">Project Health <span class="refresh" onclick="loadProjects()">&#8635;</span></div>
+      <div class="sb-body" id="healthList" style="flex:1;overflow-y:auto;padding-bottom:6px"></div>
+    </div>
+    <!-- Activity -->
+    <div class="sb-section" style="flex-shrink:0;max-height:140px;overflow:hidden;display:flex;flex-direction:column">
+      <div class="sb-header">Activity</div>
+      <div class="sb-body" id="activityFeed" style="flex:1;overflow-y:auto;padding:4px 10px">
+        <div style="color:var(--muted);font-size:11px;font-style:italic;padding:6px 0">No recent activity</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── CENTER ────────────────────────────────────────────────────── -->
+  <div class="center">
+    <div class="center-header" id="centerHeader">
+      <span class="proj-label" id="focusedLabel">No project selected</span>
+    </div>
+    <div class="center-body">
+      <!-- File tree -->
+      <div class="file-tree" id="fileTreePanel">
+        <div class="ft-header">Changed Files <span class="ft-count" id="ftCount">0</span></div>
+        <div id="fileTree"><div class="ft-empty">Select a project to see changes</div></div>
+      </div>
+      <!-- Window area -->
+      <div class="win-area" id="winArea">
+        <div class="win-empty" id="winEmpty">Click a file to view its diff, or use action buttons</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── RIGHT PANEL (CHAT) ────────────────────────────────────────── -->
+  <div class="right-panel">
+    <div class="chat-header">
+      <div class="chat-header-top">
+        <span class="chat-header-title">Project Chat</span>
+        <button class="chat-clear" onclick="clearChat()">Clear</button>
+      </div>
+      <div class="chat-ctx" id="chatCtx">Select a project to begin</div>
+    </div>
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="chat-input-area">
+      <div class="chat-actions">
+        <button class="ca-btn" id="btnLaunch" onclick="launchDev()" disabled>&#9654; Launch</button>
+        <button class="ca-btn" id="btnStage" onclick="stageFiles()" disabled>&#43; Stage All</button>
+        <button class="ca-btn" id="btnCommit" onclick="generateCommit()" disabled>&#128221; Generate Commit</button>
+        <button class="ca-btn" id="btnTests" onclick="runTests()" disabled>&#9989; Tests</button>
+      </div>
+      <div class="chat-agent-row">
+        <select class="chat-agent-sel" id="agentSelect">
+          <option value="manager">Manager</option>
+          <option value="frontend">Frontend</option>
+          <option value="backend">Backend</option>
+          <option value="tester">Tester</option>
+        </select>
+      </div>
+      <div class="chat-row">
+        <input class="chat-input" id="chatInput" placeholder="Ask about this project..." onkeydown="if(event.key==='Enter')sendChat()">
+        <button class="chat-send" onclick="sendChat()">
+          <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM BAR -->
+<div class="bottom-bar">
+  <div class="bb-item"><span class="bb-dot" style="background:var(--green)" id="bbApiDot"></span> API</div>
+  <div class="bb-item"><span class="bb-dot" id="bbRunnerDot" style="background:var(--muted)"></span> Runner</div>
+  <div class="bb-item" id="bbFocused">—</div>
+  <div style="flex:1"></div>
+  <div class="bb-item" id="bbHealth">—</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     JAVASCRIPT
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<script>
+const API = '/api';
+
+// ═══ STATE ══════════════════════════════════════════════════════════════════
+let projects = [];
+let focusedId = null;
+let focusedProject = null;
+let runnerOnline = false;
+let runnerState = {};
+let devStates = {};   // { id: {status,branch,dirtyCount,changedFiles,lastCommit} }
+let gitDiffCache = {};
+let healthSSE = null;
+let windowIdCounter = 0;
+let windows = {};     // { id: {el,type,title,z} }
+let topZ = 100;
+let devUrl = null;
+
+// ═══ HELPERS ═══════════════════════════════════════════════════════════════
+function esc(s){ const d=document.createElement('div');d.textContent=s||'';return d.innerHTML; }
+function fmt(n){ if(n==null)return'0';if(n>=1e6)return(n/1e6).toFixed(1)+'M';if(n>=1e3)return(n/1e3).toFixed(1)+'K';return String(n); }
+function timeAgo(ts){ if(!ts)return'—'; const d=Date.now()-new Date(ts).getTime(); const m=Math.floor(d/60000); if(m<1)return'now'; if(m<60)return m+'m'; const h=Math.floor(m/60); if(h<24)return h+'h'; return Math.floor(h/24)+'d'; }
+
+// ═══ CLOCK ═════════════════════════════════════════════════════════════════
+function tick(){ document.getElementById('clock').textContent=new Date().toLocaleTimeString('en-US',{hour12:false}); }
+setInterval(tick,1000); tick();
+
+// ═══ ACTIVITY FEED ═════════════════════════════════════════════════════════
+function addActivity(icon, text){
+  const feed = document.getElementById('activityFeed');
+  const t = new Date().toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit'});
+  const el = document.createElement('div');
+  el.style.cssText='font-size:10px;padding:3px 0;color:var(--text);border-bottom:1px solid var(--border)';
+  el.innerHTML=`<span style="color:var(--muted)">${t}</span> ${icon} ${esc(text)}`;
+  if(feed.firstChild) feed.insertBefore(el, feed.firstChild);
+  else feed.appendChild(el);
+  // keep max 30
+  while(feed.children.length > 30) feed.removeChild(feed.lastChild);
+}
+
+// ═══ RUNNER STATUS ═════════════════════════════════════════════════════════
+async function pollRunner(){
+  try{
+    const r = await fetch(`${API}/runner/status`);
+    runnerState = await r.json();
+    runnerOnline = runnerState.online;
+  }catch(e){ runnerOnline=false; runnerState={online:false}; }
+  updateRunnerUI();
+  updateActionButtons();
+}
+
+function updateRunnerUI(){
+  const pill = document.getElementById('runnerStatus');
+  const info = document.getElementById('runnerInfo');
+  const bbDot = document.getElementById('bbRunnerDot');
+  if(runnerOnline){
+    pill.className='status-pill ok';
+    info.textContent=runnerState.platform||'online';
+    bbDot.style.background='var(--green)';
+  }else{
+    pill.className='status-pill off';
+    info.textContent=runnerState.last_seen?timeAgo(runnerState.last_seen):'—';
+    bbDot.style.background='var(--muted)';
+  }
+}
+
+function updateActionButtons(){
+  const on = runnerOnline && focusedId;
+  ['btnLaunch','btnStage','btnCommit','btnTests'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.disabled=!on;
+  });
+}
+
+// ═══ PROJECTS ══════════════════════════════════════════════════════════════
+async function loadProjects(){
+  try{
+    const r=await fetch(`${API}/projects`);
+    const data=await r.json();
+    projects=data.projects||[];
+    renderProjectList();
+    renderHealthList();
+    if(focusedId) refreshFocused();
+  }catch(e){ console.warn('loadProjects:',e); }
+}
+
+function renderProjectList(){
+  const el=document.getElementById('projectList');
+  if(!projects.length){ el.innerHTML='<div style="padding:10px 14px;color:var(--muted);font-size:11px;font-style:italic">No projects</div>'; return; }
+  el.innerHTML=projects.map(p=>{
+    const active=p.id===focusedId?' active':'';
+    const dot=p.health||'unknown';
+    const ds=devStates[p.id];
+    const devDot=ds&&ds.status==='online'?'live':'off';
+    const checks=(p.checks||[]).length;
+    return `<div class="proj-row${active}" onclick="focusProject('${p.id}')">
+      <span class="dot ${dot}"></span>
+      <span class="pname">${esc(p.name)}</span>
+      <span class="dev-dot ${devDot}" title="${devDot==='live'?'Dev online':'Dev offline'}"></span>
+      <span class="pdetail">${checks?checks+'chk':''}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderHealthList(){
+  const el=document.getElementById('healthList');
+  const withChecks=projects.filter(p=>p.checks&&p.checks.length);
+  if(!withChecks.length){ el.innerHTML='<div style="padding:10px;color:var(--muted);font-size:11px;font-style:italic;text-align:center">No health data</div>'; return; }
+  el.innerHTML=withChecks.map(p=>{
+    const active=p.id===focusedId?' active':'';
+    const hClass=p.health||'unknown';
+    const ds=devStates[p.id];
+    const devBadge=ds?(ds.status==='online'?(ds.dirtyCount>0?`<span class="hbadge dirty">${ds.dirtyCount}Δ</span>`:'<span class="hbadge dev-on">DEV ✓</span>'):'<span class="hbadge dev-off">DEV —</span>'):'';
+    const branch=ds&&ds.branch?ds.branch:'main';
+    const latest=(p.checks||[])[0]||{};
+    const ago=latest.timestamp?timeAgo(latest.timestamp):'—';
+    return `<div class="hcard${active}" onclick="focusProject('${p.id}')">
+      <div class="hcard-top">
+        <div class="hcard-name"><span class="dot ${hClass}"></span> ${esc(p.name)}</div>
+        <div class="hcard-badges"><span class="hbadge ${hClass}">${(p.health||'?').toUpperCase()}</span>${devBadge}</div>
+      </div>
+      <div class="hcard-row"><span class="branch">${esc(branch)}</span><span class="time">${ago}</span></div>
+    </div>`;
+  }).join('');
+}
+
+// ═══ FOCUS PROJECT ═════════════════════════════════════════════════════════
+async function focusProject(id){
+  focusedId=id;
+  focusedProject=projects.find(p=>p.id===id)||null;
+  devUrl=null;
+  renderProjectList();
+  renderHealthList();
+  updateActionButtons();
+  // Update center header
+  updateCenterHeader();
+  // Fetch dev state for this project
+  await fetchDevState(id);
+  updateCenterHeader();
+  // Fetch git diff
+  await fetchGitDiff(id);
+  // Render file tree
+  renderFileTree();
+  // Update chat context
+  updateChatCtx();
+  // Update bottom bar
+  document.getElementById('bbFocused').textContent=focusedProject?focusedProject.name:'—';
+  addActivity('📂', `Focused: ${focusedProject?focusedProject.name:id}`);
+}
+
+async function refreshFocused(){
+  if(!focusedId) return;
+  await fetchDevState(focusedId);
+  updateCenterHeader();
+  await fetchGitDiff(focusedId);
+  renderFileTree();
+  updateChatCtx();
+}
+
+function updateCenterHeader(){
+  const hdr=document.getElementById('centerHeader');
+  if(!focusedProject){ hdr.innerHTML='<span class="proj-label">No project selected</span>'; return; }
+  const ds=devStates[focusedId];
+  let parts=`<span class="proj-label">${esc(focusedProject.name)}</span>`;
+  if(ds&&ds.status==='online'){
+    parts+=`<span class="branch-tag">⎇ ${esc(ds.branch||'?')}</span>`;
+    if(ds.dirtyCount>0) parts+=`<span class="dirty-tag">${ds.dirtyCount} dirty</span>`;
+    else parts+=`<span style="color:var(--green);font-size:10px">✓ clean</span>`;
+    if(ds.lastCommit) parts+=`<span style="color:var(--muted);font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(ds.lastCommit.substring(0,40))}</span>`;
+  }else if(runnerOnline){
+    parts+=`<span style="color:var(--muted);font-size:10px">no local path</span>`;
+  }else{
+    parts+=`<span style="color:var(--muted);font-size:10px">runner offline</span>`;
+  }
+  if(devUrl) parts+=`<a class="dev-url" href="${esc(devUrl)}" target="_blank">Dev: ${esc(devUrl)}</a>`;
+  parts+=`<button class="ch-btn" onclick="openDiffWindow()" ${runnerOnline&&focusedId?'':'disabled'}>View All Changes</button>`;
+  hdr.innerHTML=parts;
+}
+
+function updateChatCtx(){
+  const el=document.getElementById('chatCtx');
+  if(!focusedProject){ el.innerHTML='Select a project to begin'; return; }
+  const ds=devStates[focusedId];
+  let html=`<span>${esc(focusedProject.name)}</span>`;
+  if(ds&&ds.status==='online'){
+    html+=` · <span class="ctx-branch">⎇ ${esc(ds.branch||'?')}</span>`;
+    if(ds.dirtyCount>0) html+=` · <span style="color:var(--yellow)">${ds.dirtyCount} dirty</span>`;
+  }
+  if(devUrl) html+=` · <span class="ctx-url">${esc(devUrl)}</span>`;
+  el.innerHTML=html;
+}
+
+// ═══ DEV STATE ═════════════════════════════════════════════════════════════
+async function fetchDevState(id){
+  if(!runnerOnline){ devStates[id]={status:'offline'}; return; }
+  try{
+    const r=await fetch(`${API}/runner/dev-state/${id}`);
+    devStates[id]=await r.json();
+  }catch(e){ devStates[id]={status:'offline'}; }
+}
+
+async function fetchAllDevStates(){
+  if(!runnerOnline)return;
+  for(const p of projects){
+    try{ const r=await fetch(`${API}/runner/dev-state/${p.id}`); devStates[p.id]=await r.json(); }
+    catch(e){ devStates[p.id]={status:'offline'}; }
+  }
+  renderProjectList();
+  renderHealthList();
+  if(focusedId){ updateCenterHeader(); updateChatCtx(); }
+}
+
+// ═══ GIT DIFF ══════════════════════════════════════════════════════════════
+async function fetchGitDiff(id){
+  if(!runnerOnline){ gitDiffCache[id]=''; return; }
+  try{
+    const r=await fetch(`${API}/runner/git/diff?projectId=${id}`);
+    if(r.ok){ const d=await r.json(); gitDiffCache[id]=d.diff||''; }
+    else gitDiffCache[id]='';
+  }catch(e){ gitDiffCache[id]=''; }
+}
+
+// ═══ FILE TREE (CHANGED FILES ONLY) ═══════════════════════════════════════
+function renderFileTree(){
+  const container=document.getElementById('fileTree');
+  const countEl=document.getElementById('ftCount');
+  const ds=devStates[focusedId];
+  if(!focusedId||!ds||ds.status!=='online'||!ds.changedFiles||!ds.changedFiles.length){
+    container.innerHTML='<div class="ft-empty">'+(focusedId?(runnerOnline?'No changes':'Runner offline'):'Select a project')+'</div>';
+    countEl.textContent='0';
+    return;
+  }
+  const files=ds.changedFiles; // array of strings like "M src/foo.py" or just "src/foo.py"
+  countEl.textContent=files.length;
+
+  // Parse files into { status, path, dir, name }
+  const parsed=files.map(f=>{
+    // Format may be "M  path" or "?? path" or just "path"
+    let status='M', path=f;
+    const m=f.match(/^([MADRCU?!]{1,2})\s+(.+)$/);
+    if(m){ status=m[1].trim(); path=m[2]; }
+    const parts=path.split('/');
+    const name=parts.pop();
+    const dir=parts.join('/')||'.';
+    return {status:status[0],path,dir,name};
+  });
+
+  // Group by directory
+  const groups={};
+  parsed.forEach(f=>{ (groups[f.dir]=groups[f.dir]||[]).push(f); });
+  const sortedDirs=Object.keys(groups).sort();
+
+  let html='';
+  for(const dir of sortedDirs){
+    html+=`<div class="ft-dir">📁 ${esc(dir)}</div>`;
+    for(const f of groups[dir]){
+      const icon=f.status==='A'?'🟢':f.status==='D'?'🔴':f.status==='?'?'🟡':'📝';
+      html+=`<div class="ft-file" onclick="openFileDiff('${esc(f.path)}')" title="${esc(f.path)}">
+        <span class="ficon">${icon}</span>
+        <span class="fname">${esc(f.name)}</span>
+        <span class="fstat ${f.status}">${f.status}</span>
+      </div>`;
+    }
+  }
+  container.innerHTML=html;
+}
+
+// ═══ FLOATING WINDOW MANAGER ══════════════════════════════════════════════
+function createWindow(type, title, content, opts={}){
+  const id = ++windowIdCounter;
+  const area = document.getElementById('winArea');
+  const emptyEl = document.getElementById('winEmpty');
+  if(emptyEl) emptyEl.style.display='none';
+
+  topZ++;
+  const w = opts.width || 600;
+  const h = opts.height || 400;
+  // Cascade position
+  const offset = (Object.keys(windows).length % 6) * 30;
+  const x = 20 + offset;
+  const y = 20 + offset;
+
+  const win = document.createElement('div');
+  win.className = 'float-win focused';
+  win.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px;z-index:${topZ}`;
+  win.dataset.winId = id;
+  win.innerHTML = `
+    <div class="fw-titlebar" onmousedown="startDrag(event,${id})">
+      <span class="fw-icon">${type==='diff'?'📄':type==='term'?'💻':'📝'}</span>
+      <span class="fw-title">${esc(title)}</span>
+      <button class="fw-close" onclick="closeWindow(${id})">&times;</button>
+    </div>
+    <div class="fw-body">${content}</div>`;
+  win.addEventListener('mousedown',()=>bringToFront(id));
+  area.appendChild(win);
+
+  // Make resizable
+  const resizer = document.createElement('div');
+  resizer.style.cssText='position:absolute;right:0;bottom:0;width:14px;height:14px;cursor:nwse-resize';
+  resizer.addEventListener('mousedown',e=>startResize(e,id));
+  win.appendChild(resizer);
+
+  // Unfocus others
+  Object.values(windows).forEach(w=>w.el.classList.remove('focused'));
+  win.classList.add('focused');
+
+  windows[id]={el:win,type,title,z:topZ};
+  return id;
+}
+
+function closeWindow(id){
+  const w=windows[id];
+  if(!w)return;
+  w.el.remove();
+  delete windows[id];
+  if(!Object.keys(windows).length){
+    const emptyEl=document.getElementById('winEmpty');
+    if(emptyEl) emptyEl.style.display='';
+  }
+}
+
+function bringToFront(id){
+  topZ++;
+  Object.values(windows).forEach(w=>{w.el.classList.remove('focused');w.el.classList.add('unfocused')});
+  const w=windows[id];
+  if(w){w.el.style.zIndex=topZ;w.z=topZ;w.el.classList.add('focused');w.el.classList.remove('unfocused');}
+}
+
+// ── Drag ────────────────────────────────────────────────────────────────
+let dragState=null;
+function startDrag(e,id){
+  if(e.target.closest('.fw-close'))return;
+  const w=windows[id]; if(!w)return;
+  bringToFront(id);
+  const rect=w.el.getBoundingClientRect();
+  dragState={id,offX:e.clientX-rect.left,offY:e.clientY-rect.top};
+  e.preventDefault();
+}
+document.addEventListener('mousemove',e=>{
+  if(!dragState)return;
+  const w=windows[dragState.id]; if(!w)return;
+  const area=document.getElementById('winArea').getBoundingClientRect();
+  let x=e.clientX-area.left-dragState.offX;
+  let y=e.clientY-area.top-dragState.offY;
+  x=Math.max(0,Math.min(x,area.width-100));
+  y=Math.max(0,Math.min(y,area.height-32));
+  w.el.style.left=x+'px';
+  w.el.style.top=y+'px';
+});
+document.addEventListener('mouseup',()=>{ dragState=null; resizeState=null; });
+
+// ── Resize ──────────────────────────────────────────────────────────────
+let resizeState=null;
+function startResize(e,id){
+  const w=windows[id]; if(!w)return;
+  bringToFront(id);
+  const rect=w.el.getBoundingClientRect();
+  resizeState={id,startW:rect.width,startH:rect.height,startX:e.clientX,startY:e.clientY};
+  e.preventDefault();e.stopPropagation();
+}
+document.addEventListener('mousemove',e=>{
+  if(!resizeState)return;
+  const w=windows[resizeState.id]; if(!w)return;
+  const dw=e.clientX-resizeState.startX;
+  const dh=e.clientY-resizeState.startY;
+  w.el.style.width=Math.max(300,resizeState.startW+dw)+'px';
+  w.el.style.height=Math.max(200,resizeState.startH+dh)+'px';
+});
+
+// ═══ DIFF VIEWER ═══════════════════════════════════════════════════════════
+function renderDiffHtml(diffText, filterPath){
+  if(!diffText) return '<div style="padding:20px;color:var(--muted);font-style:italic">No diff available</div>';
+  const lines=diffText.split('\n');
+  let html='';
+  let inFile=false;
+  let currentFile='';
+
+  for(const line of lines){
+    if(line.startsWith('diff --git')){
+      const m=line.match(/b\/(.+)$/);
+      currentFile=m?m[1]:'';
+      if(filterPath && currentFile!==filterPath){ inFile=false; continue; }
+      inFile=true;
+      html+=`<div class="diff-file-header">${esc(currentFile)}</div>`;
+      continue;
+    }
+    if(!inFile && filterPath)continue;
+    if(line.startsWith('---')||line.startsWith('+++')){
+      if(!filterPath) inFile=true;
+      continue;
+    }
+    if(line.startsWith('@@')){
+      html+=`<div class="diff-hunk">${esc(line)}</div>`;
+      continue;
+    }
+    if(!inFile && !filterPath){
+      // skip lines before first file
+      continue;
+    }
+    if(line.startsWith('+')){
+      html+=`<div class="diff-line add">${esc(line)}</div>`;
+    }else if(line.startsWith('-')){
+      html+=`<div class="diff-line del">${esc(line)}</div>`;
+    }else{
+      html+=`<div class="diff-line ctx">${esc(line)}</div>`;
+    }
+  }
+  if(!html) return '<div style="padding:20px;color:var(--muted);font-style:italic">'+(filterPath?'No changes for this file':'No diff available')+'</div>';
+  return `<div class="diff-view">${html}</div>`;
+}
+
+function openFileDiff(path){
+  const diff=gitDiffCache[focusedId]||'';
+  const html=renderDiffHtml(diff,path);
+  createWindow('diff', path, html, {width:650,height:450});
+  addActivity('📄', `Opened diff: ${path}`);
+}
+
+function openDiffWindow(){
+  if(!focusedId)return;
+  const diff=gitDiffCache[focusedId]||'';
+  const html=renderDiffHtml(diff,null);
+  createWindow('diff', 'All Changes', html, {width:700,height:500});
+  addActivity('📄', 'Opened full diff view');
+}
+
+// ═══ TERMINAL WINDOW ══════════════════════════════════════════════════════
+function openTermWindow(title, content, isError){
+  const cls=isError?'term-view error':'term-view';
+  const html=`<div class="${cls}">${esc(content)}</div>`;
+  const wid=createWindow('term', title, html, {width:600,height:350});
+  return wid;
+}
+
+function updateTermWindow(wid, content, isError){
+  const w=windows[wid];
+  if(!w)return;
+  const body=w.el.querySelector('.fw-body');
+  const cls=isError?'term-view error':'term-view';
+  body.innerHTML=`<div class="${cls}">${esc(content)}</div>`;
+  body.scrollTop=body.scrollHeight;
+}
+
+// ═══ COMMIT WINDOW ═══════════════════════════════════════════════════════
+function openCommitWindow(title, description, files){
+  const fileListHtml=files.map(f=>`<div>${esc(f)}</div>`).join('');
+  const html=`<div class="commit-view">
+    <label>Commit Title</label>
+    <input id="commitTitle" value="${esc(title)}">
+    <label>Description</label>
+    <textarea id="commitDesc">${esc(description)}</textarea>
+    <label>Files to commit</label>
+    <div class="file-list">${fileListHtml||'<span style="color:var(--muted)">No files</span>'}</div>
+    <div class="cv-actions">
+      <button class="cv-btn outline" onclick="closeAllCommitWindows()">Cancel</button>
+      <button class="cv-btn primary" id="commitConfirmBtn" onclick="confirmCommit()">Commit</button>
+    </div>
+  </div>`;
+  createWindow('commit', '📝 Commit', html, {width:500,height:450});
+}
+
+function closeAllCommitWindows(){
+  Object.entries(windows).forEach(([id,w])=>{ if(w.type==='commit') closeWindow(Number(id)); });
+}
+
+// ═══ CHAT ═══════════════════════════════════════════════════════════════
+function clearChat(){ document.getElementById('chatMessages').innerHTML=''; }
+
+async function sendChat(){
+  const input=document.getElementById('chatInput');
+  const message=input.value.trim();
+  if(!message)return;
+  input.value='';
+  const agent=document.getElementById('agentSelect').value;
+  const container=document.getElementById('chatMessages');
+  const t=new Date().toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit'});
+  container.innerHTML+=`<div class="msg user">${esc(message)}<div class="msg-time">${t}</div></div>`;
+  const pendingId='msg-'+Date.now();
+  container.innerHTML+=`<div class="msg assistant streaming" id="${pendingId}">Thinking...</div>`;
+  container.scrollTop=container.scrollHeight;
+
+  try{
+    const ctx=focusedProject?`Project: ${focusedProject.name}`:'';
+    const r=await fetch(`${API}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent,message,task_context:ctx})});
+    const pending=document.getElementById(pendingId);
+    if(!r.ok){
+      const err=await r.json();
+      pending.innerHTML=`<span style="color:var(--red)">Error: ${esc(err.detail||r.statusText)}</span>`;
+      pending.classList.remove('streaming');
+      return;
+    }
+    const data=await r.json();
+    const rt=new Date().toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit'});
+    pending.innerHTML=`${esc(data.response)}<div class="msg-time">${rt}</div>`;
+    pending.classList.remove('streaming');
+    container.scrollTop=container.scrollHeight;
+  }catch(e){
+    const p=document.getElementById(pendingId);
+    if(p){p.innerHTML='<span style="color:var(--red)">Request failed</span>';p.classList.remove('streaming');}
+  }
+}
+
+// ═══ ACTION BUTTONS ═══════════════════════════════════════════════════════
+async function runRunnerCmd(projectId, command, timeoutSec=120){
+  const r=await fetch(`${API}/runner/cmd`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({projectId,command,timeoutSec})});
+  if(!r.ok){ const e=await r.json(); throw new Error(e.detail||r.statusText); }
+  return r.json();
+}
+
+async function launchDev(){
+  if(!focusedId||!runnerOnline)return;
+  const btn=document.getElementById('btnLaunch');
+  btn.classList.add('running');btn.disabled=true;
+  addActivity('▶️','Launching dev server...');
+  const wid=openTermWindow(`Dev: ${focusedProject?.name||focusedId}`,'Starting dev server...\n',false);
+  try{
+    const result=await runRunnerCmd(focusedId,'dev',30);
+    const output=(result.stdout||'')+(result.stderr?'\n'+result.stderr:'');
+    updateTermWindow(wid,output,result.exitCode!==0);
+    addActivity(result.exitCode===0?'✅':'❌',`Dev server ${result.exitCode===0?'started':'failed'}`);
+    // Try to extract URL from output
+    const urlMatch=output.match(/https?:\/\/localhost:\d+/);
+    if(urlMatch){
+      devUrl=urlMatch[0];
+      updateCenterHeader();
+      updateChatCtx();
+      addActivity('🔗',`Dev URL: ${devUrl}`);
+    }
+  }catch(e){
+    updateTermWindow(wid,'Error: '+e.message,true);
+    addActivity('❌','Launch failed: '+e.message);
+  }finally{ btn.classList.remove('running');btn.disabled=!runnerOnline||!focusedId; }
+}
+
+async function runTests(){
+  if(!focusedId||!runnerOnline)return;
+  const btn=document.getElementById('btnTests');
+  btn.classList.add('running');btn.disabled=true;
+  addActivity('🧪','Running tests...');
+  const wid=openTermWindow(`Tests: ${focusedProject?.name||focusedId}`,'Running tests...\n',false);
+  try{
+    const result=await runRunnerCmd(focusedId,'test',300);
+    const output=(result.stdout||'')+(result.stderr?'\n'+result.stderr:'');
+    updateTermWindow(wid,output,result.exitCode!==0);
+    addActivity(result.exitCode===0?'✅':'❌',`Tests ${result.exitCode===0?'passed':'failed'}`);
+  }catch(e){
+    updateTermWindow(wid,'Error: '+e.message,true);
+    addActivity('❌','Tests failed: '+e.message);
+  }finally{ btn.classList.remove('running');btn.disabled=!runnerOnline||!focusedId; }
+}
+
+async function stageFiles(){
+  if(!focusedId||!runnerOnline)return;
+  const btn=document.getElementById('btnStage');
+  btn.classList.add('running');btn.disabled=true;
+  addActivity('➕','Staging files...');
+  try{
+    await runRunnerCmd(focusedId,'git add -A',30);
+    addActivity('✅','All files staged');
+    // Refresh state
+    await fetchDevState(focusedId);
+    renderFileTree();
+    updateCenterHeader();
+  }catch(e){
+    addActivity('❌','Stage failed: '+e.message);
+  }finally{ btn.classList.remove('running');btn.disabled=!runnerOnline||!focusedId; }
+}
+
+async function generateCommit(){
+  if(!focusedId||!runnerOnline)return;
+  const btn=document.getElementById('btnCommit');
+  btn.classList.add('running');btn.disabled=true;
+  addActivity('📝','Generating commit message...');
+
+  try{
+    // First stage everything
+    await runRunnerCmd(focusedId,'git add -A',30);
+
+    // Get diff summary
+    const diffR=await fetch(`${API}/runner/git/diff?projectId=${focusedId}`);
+    const diffData=await diffR.json();
+    const diff=(diffData.diff||'').substring(0,8000);  // limit for prompt
+
+    // Get file list
+    const ds=devStates[focusedId];
+    const files=(ds&&ds.changedFiles)||[];
+
+    // Generate commit message with Claude
+    const prompt=`You are writing a git commit message. Based on this diff, write a concise commit title (max 72 chars, conventional commits format like "feat: ...", "fix: ...", "refactor: ...") and a short description (2-3 sentences). Reply in exactly this JSON format: {"title":"...","description":"..."}
+
+Diff:
+${diff}`;
+
+    const r=await fetch(`${API}/runner/claude/run`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({projectId:focusedId,prompt,timeoutSec:120})});
+    if(!r.ok){ const e=await r.json(); throw new Error(e.detail||r.statusText); }
+    const result=await r.json();
+    const output=(result.stdout||'').trim();
+
+    // Try to parse JSON from output
+    let title='', description='';
+    try{
+      const jsonMatch=output.match(/\{[\s\S]*\}/);
+      if(jsonMatch){
+        const parsed=JSON.parse(jsonMatch[0]);
+        title=parsed.title||'';
+        description=parsed.description||'';
+      }
+    }catch(e){}
+    if(!title) title=output.substring(0,72);
+    if(!description) description=output;
+
+    openCommitWindow(title, description, files);
+    addActivity('📝','Commit message generated');
+  }catch(e){
+    addActivity('❌','Generate commit failed: '+e.message);
+    alert('Failed to generate commit: '+e.message);
+  }finally{ btn.classList.remove('running');btn.disabled=!runnerOnline||!focusedId; }
+}
+
+async function confirmCommit(){
+  const titleEl=document.getElementById('commitTitle');
+  const descEl=document.getElementById('commitDesc');
+  const confirmBtn=document.getElementById('commitConfirmBtn');
+  if(!titleEl||!descEl)return;
+  const title=titleEl.value.trim();
+  const desc=descEl.value.trim();
+  if(!title){ alert('Commit title is required'); return; }
+  confirmBtn.disabled=true;
+  confirmBtn.textContent='Committing...';
+
+  const message=desc?`${title}\n\n${desc}`:title;
+  try{
+    // Escape quotes in message for shell
+    const safe=message.replace(/"/g,'\\"').replace(/`/g,'\\`');
+    await runRunnerCmd(focusedId,`git commit -m "${safe}"`,30);
+    addActivity('✅',`Committed: ${title}`);
+    closeAllCommitWindows();
+    // Refresh
+    await refreshFocused();
+    renderProjectList();
+    renderHealthList();
+  }catch(e){
+    addActivity('❌','Commit failed: '+e.message);
+    alert('Commit failed: '+e.message);
+    confirmBtn.disabled=false;
+    confirmBtn.textContent='Commit';
+  }
+}
+
+// ═══ HEALTH SSE ═══════════════════════════════════════════════════════════
+function connectHealthSSE(){
+  if(healthSSE) healthSSE.close();
+  healthSSE=new EventSource(`${API}/health/stream`);
+  healthSSE.addEventListener('check',e=>{
+    try{
+      const data=JSON.parse(e.data);
+      addActivity(data.status==='up'?'🟢':(data.status==='down'?'🔴':'🟡'),`${data.project_id}/${data.check_id}: ${data.status}`);
+      // Reload projects to get updated health
+      loadProjects();
+    }catch(err){}
+  });
+  healthSSE.onerror=()=>{ setTimeout(connectHealthSSE,5000); };
+}
+
+// ═══ REFRESH ═══════════════════════════════════════════════════════════════
+async function refreshAll(){
+  addActivity('🔄','Refreshing all data...');
+  await Promise.all([loadProjects(),pollRunner()]);
+  if(runnerOnline) await fetchAllDevStates();
+  if(focusedId) await refreshFocused();
+  addActivity('✅','Refresh complete');
+}
+
+// ═══ INIT ════════════════════════════════════════════════════════════════
+async function init(){
+  await pollRunner();
+  await loadProjects();
+  if(runnerOnline) await fetchAllDevStates();
+  connectHealthSSE();
+  // Polling
+  setInterval(pollRunner, 10000);
+  setInterval(()=>{ if(runnerOnline) fetchAllDevStates(); }, 30000);
+  setInterval(loadProjects, 60000);
+  addActivity('🚀','Workshop initialized');
+}
+init();
+</script>
+</body>
+</html>
