@@ -14,12 +14,14 @@ from fastapi.staticfiles import StaticFiles
 from src.api.health_routes import broadcast_result, health_router
 from src.api.routes import router
 from src.api.runner_routes import runner_router
+from src.api.task_routes import task_router
 from src.config import settings
 from src.health.engine import HealthStore
 from src.health.scheduler import HealthScheduler
 from src.projects.registry import ProjectRegistry
 from src.runner_connector.client import RunnerClient
 from src.runner_connector.poller import RunnerPoller
+from src.tasks.store import TaskStore
 from src.token_tracker.tracker import TokenTracker
 
 logger = logging.getLogger(__name__)
@@ -62,6 +64,10 @@ async def lifespan(app: FastAPI):
     )
     app.state.runner_client = runner_client
 
+    # Task board
+    task_store = TaskStore()
+    app.state.task_store = task_store
+
     runner_poller = RunnerPoller(
         client=runner_client,
         interval=float(settings.runner_poll_interval),
@@ -84,6 +90,7 @@ async def lifespan(app: FastAPI):
     await runner_poller.stop()
     await scheduler.stop()
     store.close()
+    task_store.close()
 
 
 def create_app() -> FastAPI:
@@ -104,10 +111,15 @@ def create_app() -> FastAPI:
     app.include_router(router, prefix="/api")
     app.include_router(health_router, prefix="/api")
     app.include_router(runner_router, prefix="/api")
+    app.include_router(task_router, prefix="/api")
 
-    # Serve dashboard at root
+    # Serve unified dashboard at root and /workshop (same SPA, mode toggled client-side)
     @app.get("/")
     async def dashboard():
+        return FileResponse(STATIC_DIR / "index.html")
+
+    @app.get("/workshop")
+    async def workshop():
         return FileResponse(STATIC_DIR / "index.html")
 
     # Serve other static assets

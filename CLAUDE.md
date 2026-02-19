@@ -35,7 +35,8 @@ src/
 ├── main.py              # CLI + server entry point (argparse → serve | run)
 ├── config.py            # Pydantic Settings from .env (extra=ignore for back-compat)
 ├── token_tracker/
-│   └── tracker.py       # Calls `claude -p` via subprocess; tracks per-agent calls/chars
+│   ├── tracker.py       # Calls `claude -p` via subprocess; tracks per-agent calls/chars
+│   └── session_parser.py # Parses ~/.claude JSONL session files for real usage data
 ├── memory/
 │   └── mem0_client.py   # Revolving memory via mem0.ai (per-agent namespace, auto-prune)
 ├── agents/
@@ -50,9 +51,28 @@ src/
 ├── orchestrator/
 │   ├── state.py         # WorkflowState (LangGraph TypedDict) + SubtaskResult
 │   └── graph.py         # LangGraph StateGraph: intake→plan→execute→review→synthesize
+├── health/
+│   ├── engine.py        # HealthStore: SQLite-backed health check storage
+│   └── scheduler.py     # HealthScheduler: runs periodic project health checks
+├── projects/
+│   └── registry.py      # ProjectRegistry: loads projects.yaml, maps IDs → config
+├── tasks/
+│   └── store.py         # TaskStore: SQLite kanban (backlog→planned→in-progress→review→done)
+├── runner/
+│   └── endpoints.py     # Local runner FastAPI endpoints (cmd, git, claude, push-pr)
+├── runner_connector/
+│   ├── client.py        # RunnerClient: httpx client for runner via reverse SSH tunnel
+│   ├── poller.py        # RunnerPoller: polls runner health every 10s
+│   └── models.py        # Pydantic models for runner requests/responses
+├── static/
+│   ├── index.html       # Bridge dashboard (main landing page)
+│   └── workshop.html    # Workshop Mode (project management + floating windows)
 └── api/
-    ├── server.py        # FastAPI app factory with CORS + root endpoint
-    └── routes.py        # POST /api/task, POST /api/chat, GET /api/status, GET /api/agents
+    ├── server.py        # FastAPI app factory with lifespan + CORS
+    ├── routes.py        # Chat, task pipeline, usage, memory, streaming endpoints
+    ├── health_routes.py # Project health + SSE streaming
+    ├── runner_routes.py # Runner proxy endpoints (cmd, git, claude, push-pr)
+    └── task_routes.py   # Task board CRUD + kanban board view
 ```
 
 ## Key Design Decisions
@@ -64,6 +84,33 @@ src/
 - **Drives decay on every `agent.chat()` call** via `self.drives.tick()`. Events like success/failure/rest modify drive levels.
 - **Memory is optional**: agents work without mem0 keys configured; `_maybe_memory()` catches init failures.
 - **Config uses `extra="ignore"`** so old `.env` fields (like `ANTHROPIC_API_KEY`) don't cause validation errors.
+- **Two dashboards**: `/` serves Bridge (index.html), `/workshop` serves Workshop Mode (workshop.html). Workshop is the project management IDE; Bridge is the system overview.
+- **Runner architecture**: Local runner (port 7777) connects to VPS via reverse SSH tunnel (`-R 17777:localhost:7777`). The RunnerPoller on the VPS polls the tunnel port every 10s. All runner commands go through `RunnerClient` → tunnel → local runner.
+- **Task Board uses SQLite**: `data/tasks.db` with WAL mode. 5 kanban columns, priority ordering, per-project filtering.
+- **Streaming via SSE**: `POST /api/chat/stream`, `POST /api/orchestrator/stream`, `POST /api/runner/cmd/stream`. Uses `text/event-stream` with named events.
+- **Safety rules**: Runner blocks `git push` to main/master. PR flow enforced. Workshop never auto-pushes.
+
+## Workshop Mode (`/workshop`)
+
+The Workshop is a full project management IDE served at `/workshop`:
+
+- **Left sidebar**: Project list with health dots + dev-state indicators, health cards with SSE live updates, activity feed
+- **Center**: File tree (changed files only from `git status`), floating window area with DiffViewer/CommitViewer/TerminalOutput
+- **Right**: Project-scoped chat panel with agent selector (Manager/Frontend/Backend/Tester), streaming responses, action buttons (Launch Dev, Stage All, Generate Commit, Run Tests)
+- **Task Board**: Full-screen overlay with 5-column kanban (backlog→done), task cards with agent/priority/autopilot, inline create/edit
+
+## Runner & Tunnel
+
+```bash
+# On local machine: start the runner
+python -m src.runner.endpoints  # listens on 0.0.0.0:7777
+
+# Open reverse SSH tunnel to VPS
+ssh -R 17777:localhost:7777 user@vps-ip -N
+```
+
+The VPS `RunnerPoller` automatically detects the runner via the tunnel.
+Runner endpoints: `/health`, `/cmd`, `/git/status`, `/git/diff`, `/claude/run`, `/git/push-pr`.
 
 ## Environment
 

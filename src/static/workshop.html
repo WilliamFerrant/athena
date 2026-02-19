@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Athena</title>
+<title>Athena — Workshop</title>
 <style>
 /* ═══════════════════════════════════════════════════════════════════════════
-   CSS VARIABLES
+   CSS VARIABLES (shared with Bridge)
    ═══════════════════════════════════════════════════════════════════════════ */
 :root {
   --bg: #1a1a1a;
@@ -50,8 +50,7 @@ a:hover{text-decoration:underline}
 .topbar{height:42px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 16px;flex-shrink:0;z-index:500}
 .topbar-left{display:flex;align-items:center;gap:12px}
 .logo{font-size:14px;font-weight:800;letter-spacing:2.5px;color:var(--text-bright);text-transform:uppercase}
-.logo-tag{font-size:9px;font-weight:700;letter-spacing:1px;background:var(--accent);color:var(--bg);padding:2px 8px;border-radius:3px;transition:all .4s cubic-bezier(.4,0,.2,1);cursor:pointer;user-select:none}
-.logo-tag:hover{filter:brightness(1.15)}
+.logo-tag{font-size:9px;font-weight:700;letter-spacing:1px;background:var(--accent);color:var(--bg);padding:2px 8px;border-radius:3px}
 .topbar-right{display:flex;align-items:center;gap:10px}
 .tb-btn{background:none;border:1px solid var(--border);color:var(--muted);padding:4px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;transition:all .2s;display:flex;align-items:center;gap:5px}
 .tb-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
@@ -64,10 +63,7 @@ a:hover{text-decoration:underline}
 .clock{font-size:11px;color:var(--muted);font-family:var(--font-mono);font-weight:500}
 
 /* ═══ MAIN 3-COL LAYOUT ═══════════════════════════════════════════════════ */
-.layout{flex:1;display:grid;grid-template-columns:260px 1fr 340px;overflow:hidden;transition:grid-template-columns .5s cubic-bezier(.4,0,.2,1)}
-
-/* Bridge mode: wider center, no file tree */
-body.bridge-mode .layout{grid-template-columns:220px 1fr 340px}
+.layout{flex:1;display:grid;grid-template-columns:260px 1fr 340px;overflow:hidden}
 
 /* ═══ LEFT SIDEBAR ════════════════════════════════════════════════════════ */
 .sidebar{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
@@ -112,22 +108,11 @@ body.bridge-mode .layout{grid-template-columns:220px 1fr 340px}
 .hcard-row .branch{font-family:var(--font-mono);color:var(--cyan);font-weight:600}
 .hcard-row .time{margin-left:auto}
 
-/* ── Activity (sidebar, shown in both modes) ── */
-.activity-section{flex-shrink:0;max-height:140px;overflow:hidden;display:flex;flex-direction:column}
-
-/* ── Mission Stack (bridge mode only) ── */
-.mission-section{flex-shrink:0;max-height:140px;overflow:hidden;display:flex;flex-direction:column;transition:max-height .4s ease, opacity .4s ease;opacity:1}
-body.workshop-mode .mission-section{max-height:0;opacity:0;border:none;overflow:hidden}
-
-/* ── Bridge/Workshop only buttons ── */
-body.workshop-mode .bridge-only{display:none}
-body.bridge-mode .workshop-only{display:none}
-
 /* ═══ CENTER AREA ═════════════════════════════════════════════════════════ */
 .center{display:flex;flex-direction:column;overflow:hidden;position:relative;background:var(--bg)}
 
 /* Center topbar */
-.center-header{height:38px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:10px;flex-shrink:0;transition:opacity .4s ease}
+.center-header{height:38px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:10px;flex-shrink:0}
 .center-header .proj-label{font-size:13px;font-weight:700;color:var(--text-bright);flex:1}
 .center-header .branch-tag{font-family:var(--font-mono);font-size:11px;color:var(--cyan);background:var(--cyan-dim);padding:2px 8px;border-radius:4px}
 .center-header .dirty-tag{font-size:10px;color:var(--yellow);font-weight:600}
@@ -136,18 +121,8 @@ body.bridge-mode .workshop-only{display:none}
 .ch-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
 .ch-btn:disabled{opacity:.3;cursor:not-allowed}
 
-/* Center body: stacked layers */
-.center-body{flex:1;position:relative;overflow:hidden}
-
-/* ── Bridge Layer (Jarvis orbital) ── */
-.bridge-layer{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;transition:opacity .5s cubic-bezier(.4,0,.2,1),transform .5s cubic-bezier(.4,0,.2,1);z-index:1}
-body.workshop-mode .bridge-layer{opacity:0;transform:scale(.96);pointer-events:none}
-body.bridge-mode .bridge-layer{opacity:1;transform:scale(1)}
-
-/* ── Workshop Layer (file tree + windows) ── */
-.workshop-layer{position:absolute;inset:0;display:grid;grid-template-columns:240px 1fr;overflow:hidden;transition:opacity .5s cubic-bezier(.4,0,.2,1),transform .5s cubic-bezier(.4,0,.2,1);z-index:2}
-body.bridge-mode .workshop-layer{opacity:0;transform:scale(1.02);pointer-events:none}
-body.workshop-mode .workshop-layer{opacity:1;transform:scale(1)}
+/* Center body = file tree + window area */
+.center-body{flex:1;display:grid;grid-template-columns:240px 1fr;overflow:hidden}
 
 /* File tree */
 .file-tree{background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;font-size:12px}
@@ -169,11 +144,6 @@ body.workshop-mode .workshop-layer{opacity:1;transform:scale(1)}
 /* Window area */
 .win-area{position:relative;overflow:hidden;background:var(--bg)}
 .win-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;font-style:italic}
-
-/* ═══ JARVIS ORBITAL VISUALIZATION ═══════════════════════════════════════ */
-.jarvis-container{position:relative;width:500px;height:500px}
-.jarvis-canvas{width:100%;height:100%}
-.jarvis-status{position:absolute;bottom:0;left:50%;transform:translateX(-50%);font-size:12px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;font-weight:600}
 
 /* ═══ FLOATING WINDOWS ═══════════════════════════════════════════════════ */
 .float-win{position:absolute;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.5);display:flex;flex-direction:column;min-width:400px;min-height:250px;overflow:hidden;transition:box-shadow .15s}
@@ -235,9 +205,7 @@ body.workshop-mode .workshop-layer{opacity:1;transform:scale(1)}
 .msg.streaming::after{content:'▌';animation:blink .8s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
 .chat-input-area{padding:10px 14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px}
-.chat-actions{display:flex;gap:6px;flex-wrap:wrap;transition:max-height .4s ease, opacity .4s ease;overflow:hidden}
-body.bridge-mode .chat-actions{max-height:0;opacity:0;margin:0;padding:0}
-body.workshop-mode .chat-actions{max-height:60px;opacity:1}
+.chat-actions{display:flex;gap:6px;flex-wrap:wrap}
 .ca-btn{padding:4px 10px;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;transition:all .15s;border:1px solid var(--border);background:var(--surface2);color:var(--text)}
 .ca-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
 .ca-btn:disabled{opacity:.3;cursor:not-allowed}
@@ -250,7 +218,6 @@ body.workshop-mode .chat-actions{max-height:60px;opacity:1}
 .chat-send svg{fill:var(--bg);width:16px;height:16px}
 .chat-agent-row{display:flex;align-items:center;gap:6px}
 .chat-agent-sel{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:3px 6px;border-radius:4px;font-size:11px;outline:none}
-.chat-agent-desc{font-size:10px;color:var(--muted);font-style:italic}
 
 /* ═══ BOTTOM BAR ══════════════════════════════════════════════════════════ */
 .bottom-bar{height:24px;background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:12px;flex-shrink:0;font-size:10px;color:var(--muted)}
@@ -263,14 +230,7 @@ body.workshop-mode .chat-actions{max-height:60px;opacity:1}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 ::-webkit-scrollbar-thumb:hover{background:var(--muted)}
 
-/* ═══ MODE TOGGLE MORPH ANIMATION ═════════════════════════════════════════ */
-@keyframes tagMorph{
-  0%{opacity:0;transform:translateY(-4px) scale(0.9)}
-  100%{opacity:1;transform:translateY(0) scale(1)}
-}
-.logo-tag.morphing{animation:tagMorph .35s ease-out forwards}
-
-/* page transition CSS (kept for compatibility with old tests) */
+/* ═══ PAGE TRANSITION ═════════════════════════════════════════════════════ */
 @keyframes pageExit{
   from{opacity:1;transform:scale(1);filter:blur(0)}
   to{opacity:0;transform:scale(0.97);filter:blur(3px)}
@@ -278,6 +238,10 @@ body.workshop-mode .chat-actions{max-height:60px;opacity:1}
 @keyframes pageEnter{
   from{opacity:0;transform:scale(1.02);filter:blur(2px)}
   to{opacity:1;transform:scale(1);filter:blur(0)}
+}
+@keyframes tagMorph{
+  0%{opacity:0;transform:translateY(-4px) scale(0.9)}
+  100%{opacity:1;transform:translateY(0) scale(1)}
 }
 @keyframes topbarSlide{
   from{opacity:0.5;transform:translateY(-2px)}
@@ -290,10 +254,6 @@ body.page-enter-active>*{opacity:0}
 body.page-enter-ready .topbar{animation:topbarSlide 200ms ease-out forwards}
 body.page-enter-ready .topbar .logo-tag{animation:tagMorph 350ms ease-out 50ms forwards;opacity:0}
 body.page-enter-ready>*:not(.topbar){animation:pageEnter 350ms ease-out 100ms forwards;opacity:0}
-
-/* ═══ Workshop-only center header visibility ═════════════════════════════ */
-body.bridge-mode .center-header{opacity:.4;pointer-events:none}
-body.workshop-mode .center-header{opacity:1;pointer-events:auto}
 
 /* ═══ TASK BOARD OVERLAY ═════════════════════════════════════════════════ */
 .board-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:900;display:none;align-items:stretch;justify-content:center;padding:40px 20px}
@@ -350,7 +310,7 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
 .ntf-btn.cancel{background:none;border:1px solid var(--border);color:var(--muted)}
 .ntf-btn.cancel:hover{border-color:var(--red);color:var(--red)}
 
-/* Push/PR */
+/* ═══ PUSH/PR ═════════════════════════════════════════════════════════════ */
 .pr-result{padding:12px;font-size:12px}
 .pr-result a{color:var(--accent);font-weight:600}
 .pr-result .pr-url{font-family:var(--font-mono);font-size:11px;background:var(--bg);padding:4px 8px;border-radius:4px;display:inline-block;margin-top:6px}
@@ -438,23 +398,22 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
 .mem-stats{font-size:10px;color:var(--muted);padding:4px 0}
 </style>
 </head>
-<body class="bridge-mode">
+<body>
 
 <!-- TOP BAR -->
 <div class="topbar">
   <div class="topbar-left">
     <span class="logo">Athena</span>
-    <span class="logo-tag" id="modeTag" onclick="toggleMode()">THE BRIDGE</span>
+    <span class="logo-tag">WORKSHOP</span>
   </div>
   <div class="topbar-right">
     <div class="status-pill ok" id="apiStatus"><span class="sd"></span><span>API</span></div>
     <div class="status-pill off" id="runnerStatus"><span class="sd"></span><span>Runner</span><span id="runnerInfo" style="font-size:9px">—</span></div>
+    <button class="tb-btn" onclick="navigateToBridge()">&#9664; Bridge</button>
     <button class="tb-btn" id="tbBoard" onclick="toggleTaskBoard()">&#9744; Board</button>
     <button class="tb-btn" onclick="toggleUsage()">&#128200; Usage</button>
     <button class="tb-btn" onclick="toggleOrchestrator()">&#9889; Mission</button>
     <button class="tb-btn" onclick="toggleMemory()">&#128065; Memory</button>
-    <button class="tb-btn bridge-only" onclick="navigateToWorkshop()">&#128736; Workshop</button>
-    <button class="tb-btn workshop-only" onclick="navigateToBridge()">&#127758; Bridge</button>
     <button class="tb-btn" onclick="refreshAll()">&#8635; Refresh</button>
     <span class="clock" id="clock"></span>
   </div>
@@ -475,15 +434,8 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
       <div class="sb-header">Project Health <span class="refresh" onclick="loadProjects()">&#8635;</span></div>
       <div class="sb-body" id="healthList" style="flex:1;overflow-y:auto;padding-bottom:6px"></div>
     </div>
-    <!-- Mission Stack (Bridge only) -->
-    <div class="sb-section mission-section">
-      <div class="sb-header">Mission Stack</div>
-      <div class="sb-body" id="missionStack" style="flex:1;overflow-y:auto;padding:4px 10px">
-        <div style="color:var(--muted);font-size:11px;font-style:italic;padding:6px 0">No active missions</div>
-      </div>
-    </div>
     <!-- Activity -->
-    <div class="sb-section activity-section">
+    <div class="sb-section" style="flex-shrink:0;max-height:140px;overflow:hidden;display:flex;flex-direction:column">
       <div class="sb-header">Activity</div>
       <div class="sb-body" id="activityFeed" style="flex:1;overflow-y:auto;padding:4px 10px">
         <div style="color:var(--muted);font-size:11px;font-style:italic;padding:6px 0">No recent activity</div>
@@ -497,22 +449,14 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
       <span class="proj-label" id="focusedLabel">No project selected</span>
     </div>
     <div class="center-body">
-      <!-- Bridge Layer: Jarvis Orbital -->
-      <div class="bridge-layer" id="bridgeLayer">
-        <div class="jarvis-container">
-          <canvas class="jarvis-canvas" id="jarvisCanvas"></canvas>
-          <div class="jarvis-status" id="jarvisStatus">IDLE</div>
-        </div>
+      <!-- File tree -->
+      <div class="file-tree" id="fileTreePanel">
+        <div class="ft-header">Changed Files <span class="ft-count" id="ftCount">0</span></div>
+        <div id="fileTree"><div class="ft-empty">Select a project to see changes</div></div>
       </div>
-      <!-- Workshop Layer: File Tree + Windows -->
-      <div class="workshop-layer" id="workshopLayer">
-        <div class="file-tree" id="fileTreePanel">
-          <div class="ft-header">Changed Files <span class="ft-count" id="ftCount">0</span></div>
-          <div id="fileTree"><div class="ft-empty">Select a project to see changes</div></div>
-        </div>
-        <div class="win-area" id="winArea">
-          <div class="win-empty" id="winEmpty">Click a file to view its diff, or use action buttons</div>
-        </div>
+      <!-- Window area -->
+      <div class="win-area" id="winArea">
+        <div class="win-empty" id="winEmpty">Click a file to view its diff, or use action buttons</div>
       </div>
     </div>
   </div>
@@ -521,14 +465,14 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
   <div class="right-panel">
     <div class="chat-header">
       <div class="chat-header-top">
-        <span class="chat-header-title" id="chatTitle">Conversation</span>
+        <span class="chat-header-title">Project Chat</span>
         <button class="chat-clear" onclick="clearChat()">Clear</button>
       </div>
       <div class="chat-ctx" id="chatCtx">Select a project to begin</div>
     </div>
     <div class="chat-messages" id="chatMessages"></div>
     <div class="chat-input-area">
-      <div class="chat-actions" id="workshopActions">
+      <div class="chat-actions">
         <button class="ca-btn" id="btnLaunch" onclick="launchDev()" disabled>&#9654; Launch</button>
         <button class="ca-btn" id="btnStage" onclick="stageFiles()" disabled>&#43; Stage All</button>
         <button class="ca-btn" id="btnCommit" onclick="generateCommit()" disabled>&#128221; Generate Commit</button>
@@ -542,10 +486,9 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
           <option value="backend">Backend</option>
           <option value="tester">Tester</option>
         </select>
-        <span class="chat-agent-desc" id="agentDesc">Central coordinator</span>
       </div>
       <div class="chat-row">
-        <input class="chat-input" id="chatInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendChat()">
+        <input class="chat-input" id="chatInput" placeholder="Ask about this project..." onkeydown="if(event.key==='Enter')sendChat()">
         <button class="chat-send" onclick="sendChat()">
           <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
         </button>
@@ -641,80 +584,18 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
 <script>
 const API = '/api';
 
-// ═══ MODE STATE ═════════════════════════════════════════════════════════════
-let currentMode = 'bridge'; // 'bridge' | 'workshop'
-
-function toggleMode() {
-  currentMode = currentMode === 'bridge' ? 'workshop' : 'bridge';
-  applyMode();
-}
-
-function applyMode() {
-  const tag = document.getElementById('modeTag');
-  document.body.classList.remove('bridge-mode', 'workshop-mode');
-  document.body.classList.add(currentMode + '-mode');
-
-  // Morph the tag text with animation
-  tag.classList.add('morphing');
-  tag.textContent = currentMode === 'bridge' ? 'THE BRIDGE' : 'WORKSHOP';
-  setTimeout(() => tag.classList.remove('morphing'), 400);
-
-  // Update chat title
-  document.getElementById('chatTitle').textContent = currentMode === 'bridge' ? 'Conversation' : 'Project Chat';
-
-  // Update placeholder
-  document.getElementById('chatInput').placeholder = currentMode === 'bridge' ? 'Type a message...' : 'Ask about this project...';
-
-  // Update URL without reload
-  const newPath = currentMode === 'workshop' ? '/workshop' : '/';
-  history.replaceState({ mode: currentMode }, '', newPath);
-
-  // Persist mode
-  localStorage.setItem('athenaMode', currentMode);
-
-  // Activate Jarvis canvas rendering when needed
-  if (currentMode === 'bridge') startJarvis();
-}
-
-// ═══ NAVIGATION COMPAT (kept for tests / external links) ════════════════════
-// These functions exist so that old links/tests still work.
-// They now just toggle mode instead of navigating to a different page.
-
-function toggleWorkshop() {
-  // Legacy compat — same as toggling mode to workshop
-  if (currentMode !== 'workshop') {
-    navigateToWorkshop();
-  }
-}
-
-function navigateToWorkshop() {
-  if (document.body.classList.contains('page-exit-active')) return;
-  sessionStorage.setItem('pageTransition', 'toWorkshop');
-  document.body.classList.add('page-exit-active');
-  setTimeout(() => {
-    document.body.classList.remove('page-exit-active');
-    currentMode = 'workshop';
-    applyMode();
-    // Entry animation
-    document.body.classList.add('page-enter-active');
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        document.body.classList.remove('page-enter-active');
-        document.body.classList.add('page-enter-ready');
-        setTimeout(() => document.body.classList.remove('page-enter-ready'), 500);
-      });
-    });
-  }, 320);
-}
-
+// ═══ PAGE TRANSITIONS ═══════════════════════════════════════════════════════
 function navigateToBridge() {
   if (document.body.classList.contains('page-exit-active')) return;
   sessionStorage.setItem('pageTransition', 'toBridge');
   document.body.classList.add('page-exit-active');
-  setTimeout(() => {
-    document.body.classList.remove('page-exit-active');
-    currentMode = 'bridge';
-    applyMode();
+  setTimeout(() => { window.location.href = '/'; }, 320);
+}
+
+// On load: check if arriving from Bridge
+(function checkEntryTransition() {
+  if (sessionStorage.getItem('pageTransition') === 'toWorkshop') {
+    sessionStorage.removeItem('pageTransition');
     document.body.classList.add('page-enter-active');
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -723,141 +604,8 @@ function navigateToBridge() {
         setTimeout(() => document.body.classList.remove('page-enter-ready'), 500);
       });
     });
-  }, 320);
-}
-
-// ═══ JARVIS ORBITAL VISUALIZATION ═══════════════════════════════════════════
-let jarvisRunning = false;
-let jarvisRaf = null;
-
-function startJarvis() {
-  if (jarvisRunning) return;
-  jarvisRunning = true;
-  const canvas = document.getElementById('jarvisCanvas');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const dpr = window.devicePixelRatio || 1;
-
-  function resize() {
-    const rect = canvas.parentElement.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    canvas.style.width = rect.width + 'px';
-    canvas.style.height = rect.height + 'px';
-    ctx.scale(dpr, dpr);
   }
-  resize();
-  window.addEventListener('resize', resize);
-
-  const accentRgb = [124, 166, 196]; // --accent
-  const mutedRgb = [138, 136, 120];
-
-  // Orbital rings
-  const rings = [
-    { r: 60, speed: 0.0004, width: 1, dash: [2, 6], opacity: 0.15 },
-    { r: 95, speed: -0.0006, width: 1.2, dash: [4, 8], opacity: 0.2 },
-    { r: 130, speed: 0.0003, width: 1, dash: [6, 12], opacity: 0.18 },
-    { r: 170, speed: -0.0005, width: 1.5, dash: [3, 10], opacity: 0.22 },
-    { r: 210, speed: 0.0002, width: 1, dash: [8, 16], opacity: 0.12 },
-  ];
-
-  // Particles on rings
-  const particles = [];
-  for (let i = 0; i < 8; i++) {
-    const ring = rings[Math.floor(Math.random() * rings.length)];
-    particles.push({
-      ring,
-      angle: Math.random() * Math.PI * 2,
-      speed: (0.001 + Math.random() * 0.002) * (Math.random() > 0.5 ? 1 : -1),
-      size: 2 + Math.random() * 2,
-      pulse: Math.random() * Math.PI * 2,
-    });
-  }
-
-  // Arc segments (sweeping arcs)
-  const arcs = [
-    { r: 140, startAngle: 0, sweep: 0.8, speed: 0.0008, width: 2, opacity: 0.25 },
-    { r: 185, startAngle: Math.PI, sweep: 0.6, speed: -0.0006, width: 2.5, opacity: 0.2 },
-    { r: 100, startAngle: Math.PI * 0.5, sweep: 0.5, speed: 0.001, width: 1.5, opacity: 0.18 },
-  ];
-
-  let t = 0;
-  function draw() {
-    if (currentMode !== 'bridge') { jarvisRunning = false; return; }
-    t++;
-    const w = canvas.width / dpr;
-    const h = canvas.height / dpr;
-    const cx = w / 2;
-    const cy = h / 2;
-
-    ctx.clearRect(0, 0, w, h);
-
-    // Central glow
-    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 30);
-    grad.addColorStop(0, `rgba(${accentRgb.join(',')}, 0.3)`);
-    grad.addColorStop(1, `rgba(${accentRgb.join(',')}, 0)`);
-    ctx.beginPath();
-    ctx.arc(cx, cy, 30, 0, Math.PI * 2);
-    ctx.fillStyle = grad;
-    ctx.fill();
-
-    // Center dot
-    ctx.beginPath();
-    ctx.arc(cx, cy, 3, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(${accentRgb.join(',')}, 0.8)`;
-    ctx.fill();
-
-    // Rings
-    for (const ring of rings) {
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(t * ring.speed);
-      ctx.beginPath();
-      ctx.arc(0, 0, ring.r, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(${accentRgb.join(',')}, ${ring.opacity})`;
-      ctx.lineWidth = ring.width;
-      ctx.setLineDash(ring.dash);
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    // Arcs
-    for (const arc of arcs) {
-      ctx.save();
-      ctx.translate(cx, cy);
-      const a = t * arc.speed + arc.startAngle;
-      ctx.beginPath();
-      ctx.arc(0, 0, arc.r, a, a + arc.sweep);
-      ctx.strokeStyle = `rgba(${accentRgb.join(',')}, ${arc.opacity})`;
-      ctx.lineWidth = arc.width;
-      ctx.setLineDash([]);
-      ctx.lineCap = 'round';
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    // Particles
-    for (const p of particles) {
-      p.angle += p.speed;
-      p.pulse += 0.03;
-      const px = cx + Math.cos(p.angle) * p.ring.r;
-      const py = cy + Math.sin(p.angle) * p.ring.r;
-      const alpha = 0.5 + 0.5 * Math.sin(p.pulse);
-      ctx.beginPath();
-      ctx.arc(px, py, p.size, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${accentRgb.join(',')}, ${alpha * 0.7})`;
-      ctx.fill();
-    }
-
-    jarvisRaf = requestAnimationFrame(draw);
-  }
-  draw();
-}
-
-function stopJarvis() {
-  jarvisRunning = false;
-  if (jarvisRaf) cancelAnimationFrame(jarvisRaf);
-}
+})();
 
 // ═══ STATE ══════════════════════════════════════════════════════════════════
 let projects = [];
@@ -865,15 +613,15 @@ let focusedId = null;
 let focusedProject = null;
 let runnerOnline = false;
 let runnerState = {};
-let devStates = {};
+let devStates = {};   // { id: {status,branch,dirtyCount,changedFiles,lastCommit} }
 let gitDiffCache = {};
 let healthSSE = null;
 let windowIdCounter = 0;
-let windows = {};
+let windows = {};     // { id: {el,type,title,z} }
 let topZ = 100;
 let devUrl = null;
 let apiOk = false;
-let agentList = [];
+let agentList = [];  // populated from /api/agents
 let usageOpen = false;
 let orchOpen = false;
 let memOpen = false;
@@ -897,12 +645,12 @@ async function pollApiStatus(){
     if(r.ok){
       apiOk = true;
       pill.className = 'status-pill ok';
-      if(bbDot) bbDot.style.background = 'var(--green)';
+      bbDot.style.background = 'var(--green)';
     } else { throw new Error(); }
   }catch(e){
     apiOk = false;
     pill.className = 'status-pill off';
-    if(bbDot) bbDot.style.background = 'var(--muted)';
+    bbDot.style.background = 'var(--muted)';
   }
 }
 
@@ -915,6 +663,7 @@ function addActivity(icon, text){
   el.innerHTML=`<span style="color:var(--muted)">${t}</span> ${icon} ${esc(text)}`;
   if(feed.firstChild) feed.insertBefore(el, feed.firstChild);
   else feed.appendChild(el);
+  // keep max 30
   while(feed.children.length > 30) feed.removeChild(feed.lastChild);
 }
 
@@ -936,11 +685,11 @@ function updateRunnerUI(){
   if(runnerOnline){
     pill.className='status-pill ok';
     info.textContent=runnerState.platform||'online';
-    if(bbDot) bbDot.style.background='var(--green)';
+    bbDot.style.background='var(--green)';
   }else{
     pill.className='status-pill off';
     info.textContent=runnerState.last_seen?timeAgo(runnerState.last_seen):'—';
-    if(bbDot) bbDot.style.background='var(--muted)';
+    bbDot.style.background='var(--muted)';
   }
 }
 
@@ -1022,12 +771,18 @@ async function focusProject(id){
   renderProjectList();
   renderHealthList();
   updateActionButtons();
+  // Update center header
   updateCenterHeader();
+  // Fetch dev state for this project
   await fetchDevState(id);
   updateCenterHeader();
+  // Fetch git diff
   await fetchGitDiff(id);
+  // Render file tree
   renderFileTree();
+  // Update chat context
   updateChatCtx();
+  // Update bottom bar
   document.getElementById('bbFocused').textContent=focusedProject?focusedProject.name:'—';
   addActivity('📂', `Focused: ${focusedProject?focusedProject.name:id}`);
 }
@@ -1051,6 +806,7 @@ function updateCenterHeader(){
     if(ds.dirtyCount>0) parts+=`<span class="dirty-tag">${ds.dirtyCount} dirty</span>`;
     else parts+=`<span style="color:var(--green);font-size:10px">✓ clean</span>`;
     if(ds.lastCommit){
+      // lastCommit can be a string or an object {sha, message, author, date}
       const commitText=typeof ds.lastCommit==='string'?ds.lastCommit:(ds.lastCommit.message||ds.lastCommit.sha||'');
       if(commitText) parts+=`<span style="color:var(--muted);font-size:10px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(commitText.substring(0,40))}</span>`;
     }
@@ -1117,10 +873,12 @@ function renderFileTree(){
     countEl.textContent='0';
     return;
   }
-  const files=ds.changedFiles;
+  const files=ds.changedFiles; // array of strings like "M src/foo.py" or just "src/foo.py"
   countEl.textContent=files.length;
 
+  // Parse files into { status, path, dir, name }
   const parsed=files.map(f=>{
+    // Format may be "M  path" or "?? path" or just "path"
     let status='M', path=f;
     const m=f.match(/^([MADRCU?!]{1,2})\s+(.+)$/);
     if(m){ status=m[1].trim(); path=m[2]; }
@@ -1130,6 +888,7 @@ function renderFileTree(){
     return {status:status[0],path,dir,name};
   });
 
+  // Group by directory
   const groups={};
   parsed.forEach(f=>{ (groups[f.dir]=groups[f.dir]||[]).push(f); });
   const sortedDirs=Object.keys(groups).sort();
@@ -1147,6 +906,7 @@ function renderFileTree(){
     }
   }
   container.innerHTML=html;
+  // Use event delegation for file clicks — safe for paths with quotes/special chars
   container.querySelectorAll('.ft-file[data-filepath]').forEach(el=>{
     el.addEventListener('click',()=>openFileDiff(el.dataset.filepath));
   });
@@ -1159,15 +919,10 @@ function createWindow(type, title, content, opts={}){
   const emptyEl = document.getElementById('winEmpty');
   if(emptyEl) emptyEl.style.display='none';
 
-  // Auto-switch to workshop if in bridge mode
-  if(currentMode === 'bridge'){
-    currentMode = 'workshop';
-    applyMode();
-  }
-
   topZ++;
   const w = opts.width || 600;
   const h = opts.height || 400;
+  // Cascade position
   const offset = (Object.keys(windows).length % 6) * 30;
   const x = 20 + offset;
   const y = 20 + offset;
@@ -1186,11 +941,13 @@ function createWindow(type, title, content, opts={}){
   win.addEventListener('mousedown',()=>bringToFront(id));
   area.appendChild(win);
 
+  // Make resizable
   const resizer = document.createElement('div');
   resizer.style.cssText='position:absolute;right:0;bottom:0;width:14px;height:14px;cursor:nwse-resize';
   resizer.addEventListener('mousedown',e=>startResize(e,id));
   win.appendChild(resizer);
 
+  // Unfocus others
   Object.values(windows).forEach(w=>w.el.classList.remove('focused'));
   win.classList.add('focused');
 
@@ -1283,7 +1040,10 @@ function renderDiffHtml(diffText, filterPath){
       html+=`<div class="diff-hunk">${esc(line)}</div>`;
       continue;
     }
-    if(!inFile && !filterPath) continue;
+    if(!inFile && !filterPath){
+      // skip lines before first file
+      continue;
+    }
     if(line.startsWith('+')){
       html+=`<div class="diff-line add">${esc(line)}</div>`;
     }else if(line.startsWith('-')){
@@ -1369,6 +1129,7 @@ async function sendChat(){
 
   const ctx=focusedProject?`Project: ${focusedProject.name}`:'';
 
+  // Try streaming first, fall back to sync
   try{
     const response = await fetch(`${API}/chat/stream`,{
       method:'POST',
@@ -1377,6 +1138,7 @@ async function sendChat(){
     });
 
     if(!response.ok){
+      // Fall back to sync endpoint
       return sendChatSync(message, agent, ctx, pendingId);
     }
 
@@ -1392,6 +1154,7 @@ async function sendChat(){
       if(done) break;
       buffer += decoder.decode(value, {stream: true});
 
+      // Parse SSE events from buffer
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
 
@@ -1425,6 +1188,7 @@ async function sendChat(){
       }
     }
 
+    // If stream ended without done event
     if(pending && pending.classList.contains('streaming')){
       const rt = new Date().toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit'});
       pending.innerHTML = `${esc(fullText||'(empty response)')}<div class="msg-time">${rt}</div>`;
@@ -1432,6 +1196,7 @@ async function sendChat(){
     }
 
   }catch(e){
+    // Fall back to sync endpoint
     return sendChatSync(message, agent, ctx, pendingId);
   }
 }
@@ -1462,6 +1227,7 @@ async function runRunnerCmd(projectId, command, timeoutSec=120){
   return r.json();
 }
 
+// Streaming version of runner command — shows progress in terminal window
 async function runRunnerCmdStream(projectId, command, wid, timeoutSec=120){
   try{
     const response = await fetch(`${API}/runner/cmd/stream`,{
@@ -1470,6 +1236,7 @@ async function runRunnerCmdStream(projectId, command, wid, timeoutSec=120){
       body:JSON.stringify({projectId,command,timeoutSec})
     });
     if(!response.ok){
+      // Fall back to sync
       const result = await runRunnerCmd(projectId, command, timeoutSec);
       const output = (result.stdout||'')+(result.stderr?'\n'+result.stderr:'');
       updateTermWindow(wid, output, result.exitCode!==0);
@@ -1512,6 +1279,7 @@ async function runRunnerCmdStream(projectId, command, wid, timeoutSec=120){
     }
     return finalResult;
   }catch(e){
+    // If streaming fails, fall back to sync
     if(!e.message?.includes('Runner')){
       const result = await runRunnerCmd(projectId, command, timeoutSec);
       const output = (result.stdout||'')+(result.stderr?'\n'+result.stderr:'');
@@ -1572,6 +1340,7 @@ async function stageFiles(){
   try{
     await runRunnerCmd(focusedId,'git add -A',30);
     addActivity('✅','All files staged');
+    // Refresh state
     await fetchDevState(focusedId);
     renderFileTree();
     updateCenterHeader();
@@ -1587,13 +1356,19 @@ async function generateCommit(){
   addActivity('📝','Generating commit message...');
 
   try{
+    // First stage everything
     await runRunnerCmd(focusedId,'git add -A',30);
+
+    // Get diff summary
     const diffR=await fetch(`${API}/runner/git/diff?projectId=${focusedId}`);
     const diffData=await diffR.json();
-    const diff=(diffData.diff||'').substring(0,8000);
+    const diff=(diffData.diff||'').substring(0,8000);  // limit for prompt
+
+    // Get file list
     const ds=devStates[focusedId];
     const files=(ds&&ds.changedFiles)||[];
 
+    // Generate commit message with Claude
     const prompt=`You are writing a git commit message. Based on this diff, write a concise commit title (max 72 chars, conventional commits format like "feat: ...", "fix: ...", "refactor: ...") and a short description (2-3 sentences). Reply in exactly this JSON format: {"title":"...","description":"..."}
 
 Diff:
@@ -1604,6 +1379,7 @@ ${diff}`;
     const result=await r.json();
     const output=(result.stdout||'').trim();
 
+    // Try to parse JSON from output
     let title='', description='';
     try{
       const jsonMatch=output.match(/\{[\s\S]*\}/);
@@ -1637,10 +1413,12 @@ async function confirmCommit(){
 
   const message=desc?`${title}\n\n${desc}`:title;
   try{
+    // Escape quotes in message for shell
     const safe=message.replace(/"/g,'\\"').replace(/`/g,'\\`');
     await runRunnerCmd(focusedId,`git commit -m "${safe}"`,30);
     addActivity('✅',`Committed: ${title}`);
     closeAllCommitWindows();
+    // Refresh
     await refreshFocused();
     renderProjectList();
     renderHealthList();
@@ -1659,6 +1437,7 @@ function connectHealthSSE(){
   healthSSE.addEventListener('init',e=>{
     try{
       const data=JSON.parse(e.data);
+      // init payload is an object keyed by project_id, not an array
       if(data && typeof data==='object'){
         const projectIds=Object.keys(data);
         const checkCount=projectIds.reduce((sum,pid)=>(data[pid]||[]).length+sum,0);
@@ -1756,6 +1535,7 @@ function renderTaskCard(t, col){
   const autopilotBadge = t.autopilot?'<span class="tc-autopilot">⚡ Auto</span>':'';
   const descSnippet = t.description?`<div style="font-size:10px;color:var(--muted);margin:2px 0;max-height:30px;overflow:hidden">${esc(t.description.substring(0,80))}</div>`:'';
 
+  // Movement buttons
   const colIdx = COLUMNS.indexOf(col);
   const leftBtn = colIdx>0?`<button class="tc-act" onclick="event.stopPropagation();moveTask('${t.id}','${COLUMNS[colIdx-1]}')">◀</button>`:'';
   const rightBtn = colIdx<COLUMNS.length-1?`<button class="tc-act" onclick="event.stopPropagation();moveTask('${t.id}','${COLUMNS[colIdx+1]}')">▶</button>`:'';
@@ -1773,6 +1553,7 @@ function showNewTaskForm(col){
   newTaskColumn = col;
   const colBody = document.getElementById(`colBody-${col}`);
   if(!colBody) return;
+  // Remove any existing forms
   document.querySelectorAll('.new-task-form').forEach(el=>el.remove());
 
   const form = document.createElement('div');
@@ -1847,6 +1628,7 @@ async function deleteTask(taskId){
 }
 
 async function editTask(taskId){
+  // Simple: open the task in a floating window for editing
   try{
     const r = await fetch(`${API}/tasks/${taskId}`);
     const data = await r.json();
@@ -1910,14 +1692,16 @@ async function pushAndPR(){
   if(!ds||ds.status!=='online'){ alert('Project not available on runner'); return; }
 
   const branch = ds.branch||'';
+  // Safety: refuse main/master
   if(branch==='main'||branch==='master'){
     alert('⛔ Cannot push directly to '+branch+'. Create a feature branch first.');
     return;
   }
 
+  // Safety: warn if dirty working tree
   if(ds.dirtyCount>0){
     const choice=confirm('You have '+ds.dirtyCount+' uncommitted change(s).\n\nClick OK to push anyway (uncommitted changes will NOT be included), or Cancel to go back and commit first.');
-    if(!choice) return;
+    if(!choice) return; // User chose to go back and commit first
   }
 
   const title = prompt('PR Title:', branch.replace(/[-_]/g,' '));
@@ -1941,6 +1725,7 @@ async function pushAndPR(){
     }
     const result=await r.json();
     const prUrl=result.prUrl||result.pr_url||'';
+    // Show result in floating window
     let html='<div class="pr-result">';
     html+='<div style="color:var(--green);font-size:14px;font-weight:700;margin-bottom:8px">✅ Push & PR Complete</div>';
     if(prUrl) html+='<div>PR URL: <a href="'+esc(prUrl)+'" target="_blank">'+esc(prUrl)+'</a></div>';
@@ -1958,6 +1743,7 @@ async function pushAndPR(){
 }
 
 async function confirmCommitAndPR(){
+  // First commit, then push & PR
   const titleEl=document.getElementById('commitTitle');
   const descEl=document.getElementById('commitDesc');
   if(!titleEl||!descEl)return;
@@ -1983,6 +1769,7 @@ async function confirmCommitAndPR(){
     closeAllCommitWindows();
     await refreshFocused();
 
+    // Now push & PR
     const base=prompt('Base branch for PR:','main')||'main';
     const prBody=prompt('PR Description (optional):','')||'';
     addActivity('🚀','Pushing and creating PR...');
@@ -2026,6 +1813,7 @@ async function loadUsageData(){
 
     let html='';
 
+    // Rate limits card
     if(limitsR){
       const session = limitsR.session_5h || {};
       const weekly = limitsR.weekly_7d || {};
@@ -2033,6 +1821,7 @@ async function loadUsageData(){
       html+=renderUsageLimitCard('Weekly (7d window)', weekly);
     }
 
+    // Model breakdown
     if(modelsR && modelsR.model_breakdown && modelsR.model_breakdown.length){
       html+='<div class="usage-card"><div class="usage-card-title">Model Breakdown</div><div class="usage-models">';
       const models=modelsR.model_breakdown.slice(0,6);
@@ -2046,6 +1835,7 @@ async function loadUsageData(){
       html+='</div></div>';
     }
 
+    // Totals + insights
     if(usageR && usageR.totals){
       const t=usageR.totals;
       html+='<div class="usage-card"><div class="usage-card-title">Totals</div>';
@@ -2220,6 +2010,7 @@ async function loadAgentList(){
     agentList=(data.agents||[]).map(a=>a.id);
   }catch(e){ agentList=['manager','frontend','backend','tester']; }
 
+  // Populate both agent selectors
   const memSel=document.getElementById('memAgentSelect');
   const chatSel=document.getElementById('agentSelect');
   if(memSel){
@@ -2347,45 +2138,18 @@ async function refreshAll(){
 
 // ═══ INIT ════════════════════════════════════════════════════════════════
 async function init(){
-  // Restore mode from URL or localStorage
-  const path = window.location.pathname;
-  if(path === '/workshop'){
-    currentMode = 'workshop';
-  } else if(path === '/'){
-    const saved = localStorage.getItem('athenaMode');
-    if(saved === 'workshop') currentMode = 'workshop';
-  }
-  applyMode();
-
-  // Handle entry transitions from old page-based navigation
-  const transition = sessionStorage.getItem('pageTransition');
-  if(transition){
-    sessionStorage.removeItem('pageTransition');
-    if(transition === 'toWorkshop') currentMode = 'workshop';
-    else if(transition === 'toBridge') currentMode = 'bridge';
-    applyMode();
-    document.body.classList.add('page-enter-active');
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        document.body.classList.remove('page-enter-active');
-        document.body.classList.add('page-enter-ready');
-        setTimeout(() => document.body.classList.remove('page-enter-ready'), 500);
-      });
-    });
-  }
-
   await pollApiStatus();
   await pollRunner();
   await loadProjects();
   await loadAgentList();
   if(runnerOnline) await fetchAllDevStates();
   connectHealthSSE();
-
+  // Polling
   setInterval(pollApiStatus, 15000);
   setInterval(pollRunner, 10000);
   setInterval(()=>{ if(runnerOnline) fetchAllDevStates(); }, 30000);
   setInterval(loadProjects, 60000);
-  addActivity('🚀','Athena initialized');
+  addActivity('🚀','Workshop initialized');
 }
 init();
 </script>
