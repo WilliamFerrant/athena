@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
 import pytest
 from fastapi.testclient import TestClient
 
 from src.api.server import create_app
+from src.runner_connector.client import RunnerClient
+from src.runner_connector.poller import RunnerPoller, RunnerState
 from src.token_tracker.tracker import TokenTracker
 
 
@@ -15,6 +15,19 @@ from src.token_tracker.tracker import TokenTracker
 def client(mock_claude_cli):
     app = create_app()
     app.state.tracker = TokenTracker()
+    return TestClient(app)
+
+
+@pytest.fixture
+def client_with_runner(mock_claude_cli):
+    """Client with runner connector wired up (offline state)."""
+    app = create_app()
+    app.state.tracker = TokenTracker()
+    runner_client = RunnerClient(base_url="http://localhost:17777", token="")
+    runner_poller = RunnerPoller(client=runner_client)
+    runner_poller.state = RunnerState()  # default = offline
+    app.state.runner_client = runner_client
+    app.state.runner_poller = runner_poller
     return TestClient(app)
 
 
@@ -67,3 +80,36 @@ class TestAPIRoutes:
             "message": "Hello",
         })
         assert resp.status_code == 429
+
+
+class TestRunnerEndpoints:
+    """Smoke tests for runner proxy endpoints."""
+
+    def test_runner_status_returns_offline_when_not_started(self, client_with_runner):
+        """Runner status should report offline when runner is unreachable."""
+        resp = client_with_runner.get("/api/runner/status")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["online"] is False
+        assert "last_seen" in data
+
+    def test_runner_cmd_returns_503_when_offline(self, client_with_runner):
+        """Command execution should return 503 when runner is offline."""
+        resp = client_with_runner.post("/api/runner/cmd", json={
+            "projectId": "test",
+            "command": "echo hello",
+        })
+        assert resp.status_code == 503
+
+    def test_runner_git_status_returns_503_when_offline(self, client_with_runner):
+        """Git status should return 503 when runner is offline."""
+        resp = client_with_runner.get("/api/runner/git/status?projectId=test")
+        assert resp.status_code == 503
+
+    def test_runner_dev_state_returns_offline_gracefully(self, client_with_runner):
+        """Dev state should return offline status instead of erroring."""
+        resp = client_with_runner.get("/api/runner/dev-state/test-project")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "offline"
+        assert data["project_id"] == "test-project"

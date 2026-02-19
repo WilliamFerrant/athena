@@ -171,8 +171,6 @@ class TokenTracker:
         cmd = [self._claude_cmd, "-p"]
         if model:
             cmd.extend(["--model", model])
-        if max_tokens:
-            cmd.extend(["--max-tokens", str(max_tokens)])
 
         t0 = time.perf_counter()
         try:

@@ -504,6 +504,67 @@ input:focus,textarea:focus,select:focus { outline:none;border-color:var(--accent
 .runbook-item a { color:var(--accent);text-decoration:none; }
 .runbook-item a:hover { text-decoration:underline; }
 
+/* ═══ RUNNER STATUS ═══════════════════════════════════════════════════════ */
+.runner-indicator {
+  display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted);
+  padding: 3px 10px; border-radius: 6px; border: 1px solid var(--border);
+  transition: all 0.3s;
+}
+.runner-indicator.online { border-color: var(--green-dim); background: var(--green-dim); }
+.runner-indicator.online .runner-dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.runner-indicator.offline .runner-dot { background: var(--muted); }
+.runner-dot { width: 6px; height: 6px; border-radius: 50%; transition: all 0.3s; }
+.runner-label { font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+.runner-time { font-size: 9px; color: var(--muted); }
+
+/* Dev health badge */
+.badge-dev {
+  font-size: 9px; padding: 1px 6px; border-radius: 3px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.3px;
+}
+.badge-dev.online { background: var(--cyan-dim); color: var(--cyan); }
+.badge-dev.offline { background: #71717a22; color: var(--muted); }
+.badge-dev.dirty { background: var(--yellow-dim); color: var(--yellow); }
+
+/* Project action buttons */
+.action-bar {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.action-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all 0.2s; border: 1px solid var(--border);
+  background: var(--surface2); color: var(--text);
+}
+.action-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+.action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.action-btn .act-icon { font-size: 14px; }
+.action-btn.running { border-color: var(--yellow); color: var(--yellow); animation: pulse-dot 1.5s ease infinite; }
+
+/* Dev state card in project detail */
+.dev-state-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px 18px; margin-bottom: 14px;
+}
+.dev-state-card h3 { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; font-weight: 600; }
+.dev-state-row { display: flex; align-items: center; gap: 12px; font-size: 13px; flex-wrap: wrap; }
+.dev-state-row .branch-name { font-family: 'JetBrains Mono', monospace; color: var(--cyan); font-weight: 600; }
+.dev-state-row .commit-msg { color: var(--muted); font-size: 12px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dev-state-row .dirty-badge { font-size: 11px; padding: 1px 8px; border-radius: 4px; font-weight: 600; }
+.dev-state-offline { color: var(--muted); font-size: 13px; font-style: italic; }
+
+/* Command output panel */
+.cmd-output {
+  background: #111; border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px; margin-top: 10px; font-family: 'JetBrains Mono', monospace;
+  font-size: 12px; line-height: 1.5; color: var(--green); max-height: 300px;
+  overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+  display: none;
+}
+.cmd-output.visible { display: block; }
+.cmd-output.error { color: var(--red); }
+
 /* ═══ SCROLLBAR ═════════════════════════════════════════════════════════════ */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -525,6 +586,11 @@ input:focus,textarea:focus,select:focus { outline:none;border-color:var(--accent
     <div class="status-indicator" id="headerStatus">
       <span class="status-dot ok"></span>
       <span>Online</span>
+    </div>
+    <div class="runner-indicator offline" id="runnerIndicator" title="Local Runner">
+      <span class="runner-dot"></span>
+      <span class="runner-label">Runner</span>
+      <span class="runner-time" id="runnerLastSeen">—</span>
     </div>
     <button class="topbar-btn" id="workshopBtn" onclick="toggleWorkshop()">
       <span class="icon">&#9881;</span> Workshop
@@ -853,6 +919,17 @@ input:focus,textarea:focus,select:focus { outline:none;border-color:var(--accent
               <div class="card-header"><h3 id="projName">-</h3><div><span class="badge" id="projHealthBadge">-</span><button class="btn-sm btn-outline" onclick="triggerCheck()" style="margin-left:8px">&#9889; Check Now</button></div></div>
               <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--muted)"><span>Group: <span id="projGroup" class="text-purple">-</span></span><span>Priority: <span id="projPriority">-</span></span><span>Owner: <span id="projOwner">-</span></span></div>
             </div>
+            <div class="dev-state-card" id="projDevStateCard" style="display:none">
+              <h3>&#128187; Local Dev State</h3>
+              <div id="projDevState"></div>
+              <div class="action-bar" id="projActionBar">
+                <button class="action-btn" id="btnGitStatus" onclick="runnerGitStatus()" disabled><span class="act-icon">&#128268;</span> Git Status</button>
+                <button class="action-btn" id="btnRunDev" onclick="runnerLaunchDev()" disabled><span class="act-icon">&#9654;</span> Launch Dev</button>
+                <button class="action-btn" id="btnClaudeTask" onclick="runnerClaudePrompt()" disabled><span class="act-icon">&#129302;</span> Claude Task</button>
+                <button class="action-btn" id="btnRunTests" onclick="runnerRunTests()" disabled><span class="act-icon">&#9989;</span> Run Tests</button>
+              </div>
+              <div class="cmd-output" id="projCmdOutput"></div>
+            </div>
             <div class="card"><h3>Health Checks</h3><div class="table-scroll"><table><thead><tr><th>Check</th><th>Type</th><th>Status</th><th>Latency</th><th>Uptime 24h</th><th>Message</th><th>Last Checked</th></tr></thead><tbody id="projChecksBody"></tbody></table></div></div>
             <div class="card" id="projEnvsCard" style="display:none"><h3>Environments</h3><div id="projEnvs" style="display:flex;gap:10px;flex-wrap:wrap"></div></div>
             <div class="card" id="projRunbooksCard" style="display:none"><h3>Runbooks</h3><div id="projRunbooks"></div></div>
@@ -1087,10 +1164,12 @@ function renderProjectsSidebar(data) {
     const dotClass = p.health === 'up' ? 'green' : p.health === 'degraded' ? 'yellow' : p.health === 'down' ? 'red' : 'gray';
     const active = p.id === selectedProjectId ? ' active' : '';
     const checksCount = (p.checks || []).length;
+    const ds = devStates[p.id];
+    const devLabel = ds && ds.status === 'online' ? (ds.dirtyCount > 0 ? `${ds.dirtyCount}\u0394` : '\u2713') : '';
     return `<div class="project-row${active}" data-id="${p.id}" onclick="selectProject('${p.id}')">
       <span class="dot ${dotClass}"></span>
       <span class="name">${escHtml(p.name)}</span>
-      <span class="detail">${checksCount ? checksCount + ' checks' : ''}</span>
+      <span class="detail">${devLabel ? `<span style="color:var(--cyan);font-size:10px;margin-right:4px">${devLabel}</span>` : ''}${checksCount ? checksCount + ' checks' : ''}</span>
     </div>`;
   }).join('');
 }
@@ -1112,16 +1191,24 @@ function renderHealthCards(data) {
     const statusBg = p.health === 'up' ? 'var(--green-dim)' : p.health === 'down' ? 'var(--red-dim)' : 'var(--yellow-dim)';
     const latestCheck = (p.checks || [])[0] || {};
     const timeAgo = latestCheck.timestamp ? timeAgoStr(latestCheck.timestamp) : '-';
+    // Dev state badge
+    const ds = devStates[p.id];
+    const devBadge = ds
+      ? ds.status === 'online'
+        ? `<span class="badge-dev ${ds.dirtyCount > 0 ? 'dirty' : 'online'}">${ds.dirtyCount > 0 ? ds.dirtyCount + ' dirty' : 'DEV \u2713'}</span>`
+        : `<span class="badge-dev offline">DEV \u2014</span>`
+      : (runnerState.online ? `<span class="badge-dev online">DEV</span>` : '');
     return `<div class="health-card" onclick="selectProject('${p.id}')">
       <div class="health-card-header">
         <div class="health-card-name"><span class="dot" style="background:${statusColor};box-shadow:0 0 5px ${statusColor}"></span> ${escHtml(p.name)}</div>
         <div class="health-card-badges">
           <span class="health-mini-badge" style="background:${statusBg};color:${statusColor}">${(p.health||'?').toUpperCase()}</span>
+          ${devBadge}
         </div>
       </div>
       <div class="health-card-row">
         <span class="icon">&#9741;</span>
-        <span class="branch">main</span>
+        <span class="branch">${ds && ds.branch ? ds.branch : 'main'}</span>
         <span class="time">${timeAgo}</span>
       </div>
     </div>`;
@@ -1142,6 +1229,16 @@ function selectProject(id) {
   selectedProjectId = id;
   // Update sidebar highlight
   document.querySelectorAll('.project-row').forEach(el => el.classList.toggle('active', el.dataset.id === id));
+  // Open workshop Projects tab and load detail
+  const overlay = document.getElementById('workshopOverlay');
+  if (!overlay.classList.contains('open')) toggleWorkshop();
+  // Switch to projects tab
+  document.querySelectorAll('.ws-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.ws-panel').forEach(p => p.classList.remove('active'));
+  const projTab = document.querySelector('.ws-tab[data-ws="projects"]');
+  if (projTab) projTab.classList.add('active');
+  document.getElementById('ws-projects').classList.add('active');
+  selectProjectWS(id);
   setCoreState(true, 'SCANNING');
   setTimeout(() => setCoreState(false, 'IDLE'), 2000);
 }
@@ -1215,6 +1312,14 @@ function renderProjectDetail(p) {
   const inc=p.incidents||[];const ib=document.getElementById('projIncidentsBody');
   if(!inc.length){ib.innerHTML='<tr><td colspan="5" class="empty-state">No incidents recorded</td></tr>';}
   else{ib.innerHTML=inc.map(i=>{const resolved=i.ended_at?new Date(i.ended_at).toLocaleString():'<span class="badge badge-red">OPEN</span>';return`<tr><td>${escHtml(i.check_id)}</td><td><span class="badge badge-yellow">${escHtml(i.from_status)}</span> &rarr; <span class="badge badge-red">${escHtml(i.to_status)}</span></td><td class="text-muted">${new Date(i.started_at).toLocaleString()}</td><td>${resolved}</td><td>${escHtml(i.message||'-')}</td></tr>`;}).join('');}
+  // Dev state panel
+  hideCmdOutput();
+  updateActionButtons();
+  const pid = p.id || selectedProjectId;
+  if (pid) {
+    if (!devStates[pid]) fetchDevState(pid).then(() => updateDevStatePanel(pid));
+    else updateDevStatePanel(pid);
+  }
 }
 
 function updateHealthStats(data) {
@@ -1457,11 +1562,215 @@ async function sendChat() {
   finally{ setCoreState(false, 'IDLE'); }
 }
 
+// ═══ RUNNER API CLIENT ════════════════════════════════════════════════════
+
+let runnerState = { online: false, last_seen: null, version: null, platform: null };
+let devStates = {};  // { projectId: { status, branch, dirtyCount, changedFiles, lastCommit } }
+
+async function pollRunnerStatus() {
+  try {
+    const res = await fetch(`${API}/runner/status`);
+    const data = await res.json();
+    const wasOnline = runnerState.online;
+    runnerState = data;
+    updateRunnerIndicator();
+    // If runner just came online, fetch dev states
+    if (data.online && !wasOnline) fetchAllDevStates();
+  } catch(e) {
+    runnerState = { online: false, last_seen: runnerState.last_seen };
+    updateRunnerIndicator();
+  }
+}
+
+function updateRunnerIndicator() {
+  const el = document.getElementById('runnerIndicator');
+  const timeEl = document.getElementById('runnerLastSeen');
+  if (!el) return;
+  if (runnerState.online) {
+    el.className = 'runner-indicator online';
+    timeEl.textContent = runnerState.platform ? runnerState.platform : 'connected';
+  } else {
+    el.className = 'runner-indicator offline';
+    timeEl.textContent = runnerState.last_seen ? timeAgoStr(runnerState.last_seen) : '\u2014';
+  }
+  // Enable/disable action buttons based on runner state
+  updateActionButtons();
+}
+
+function updateActionButtons() {
+  const btns = ['btnGitStatus', 'btnRunDev', 'btnClaudeTask', 'btnRunTests'];
+  btns.forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.disabled = !runnerState.online;
+  });
+}
+
+async function fetchAllDevStates() {
+  if (!runnerState.online) return;
+  for (const p of projectsData) {
+    try {
+      const res = await fetch(`${API}/runner/dev-state/${p.id}`);
+      const data = await res.json();
+      devStates[p.id] = data;
+    } catch(e) {
+      devStates[p.id] = { status: 'offline' };
+    }
+  }
+  // Re-render health cards with dev state
+  if (projectsData.length) {
+    renderHealthCards({ projects: projectsData });
+  }
+  // Update project detail if one is selected
+  if (selectedProjectId) updateDevStatePanel(selectedProjectId);
+}
+
+async function fetchDevState(projectId) {
+  try {
+    const res = await fetch(`${API}/runner/dev-state/${projectId}`);
+    devStates[projectId] = await res.json();
+  } catch(e) {
+    devStates[projectId] = { status: 'offline' };
+  }
+}
+
+function updateDevStatePanel(projectId) {
+  const card = document.getElementById('projDevStateCard');
+  const container = document.getElementById('projDevState');
+  if (!card || !container) return;
+
+  const ds = devStates[projectId];
+  if (!ds || ds.status === 'offline') {
+    if (!runnerState.online) {
+      card.style.display = 'block';
+      container.innerHTML = '<div class="dev-state-offline">\u26A0 Runner offline \u2014 start companion-runner on your local machine</div>';
+    } else {
+      card.style.display = 'block';
+      container.innerHTML = '<div class="dev-state-offline">No local path configured for this project</div>';
+    }
+    return;
+  }
+  if (ds.status === 'error') {
+    card.style.display = 'block';
+    container.innerHTML = `<div class="dev-state-offline" style="color:var(--red)">\u2717 ${escHtml(ds.message || 'Error fetching dev state')}</div>`;
+    return;
+  }
+
+  card.style.display = 'block';
+  const dirty = ds.dirtyCount || 0;
+  const dirtyBadge = dirty > 0
+    ? `<span class="dirty-badge" style="background:var(--yellow-dim);color:var(--yellow)">${dirty} dirty</span>`
+    : `<span class="dirty-badge" style="background:var(--green-dim);color:var(--green)">clean</span>`;
+  const branch = ds.branch || 'unknown';
+  const commit = ds.lastCommit || '';
+  container.innerHTML = `<div class="dev-state-row">
+    <span class="branch-name">\u2387 ${escHtml(branch)}</span>
+    ${dirtyBadge}
+    <span class="commit-msg" title="${escHtml(commit)}">${escHtml(commit.substring(0, 60))}</span>
+  </div>${dirty > 0 && ds.changedFiles ? `<div style="margin-top:8px;font-size:11px;color:var(--muted)">${ds.changedFiles.slice(0,8).map(f=>`<div>\u00B7 ${escHtml(f)}</div>`).join('')}${ds.changedFiles.length>8?`<div>...+${ds.changedFiles.length-8} more</div>`:''}</div>` : ''}`;
+}
+
+// ═══ RUNNER ACTION BUTTONS ═══════════════════════════════════════════════
+
+function showCmdOutput(text, isError) {
+  const el = document.getElementById('projCmdOutput');
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'cmd-output visible' + (isError ? ' error' : '');
+  el.scrollTop = el.scrollHeight;
+}
+
+function hideCmdOutput() {
+  const el = document.getElementById('projCmdOutput');
+  if (el) { el.className = 'cmd-output'; el.textContent = ''; }
+}
+
+async function runnerGitStatus() {
+  if (!selectedProjectId || !runnerState.online) return;
+  const btn = document.getElementById('btnGitStatus');
+  btn.classList.add('running'); btn.disabled = true;
+  setCoreState(true, 'GIT STATUS');
+  try {
+    const res = await fetch(`${API}/runner/git/status?projectId=${selectedProjectId}`);
+    if (!res.ok) { const e = await res.json(); showCmdOutput('Error: ' + (e.detail || res.statusText), true); return; }
+    const data = await res.json();
+    const lines = [`Branch: ${data.branch}`, `Commit: ${data.lastCommit}`, `Dirty files: ${data.dirtyCount}`];
+    if (data.changedFiles?.length) lines.push('', ...data.changedFiles.map(f => '  ' + f));
+    showCmdOutput(lines.join('\n'), false);
+    // Update dev state
+    devStates[selectedProjectId] = { status: 'online', ...data };
+    updateDevStatePanel(selectedProjectId);
+  } catch(e) { showCmdOutput('Request failed: ' + e.message, true); }
+  finally { btn.classList.remove('running'); btn.disabled = !runnerState.online; setCoreState(false, 'IDLE'); }
+}
+
+async function runnerLaunchDev() {
+  if (!selectedProjectId || !runnerState.online) return;
+  const btn = document.getElementById('btnRunDev');
+  btn.classList.add('running'); btn.disabled = true;
+  setCoreState(true, 'LAUNCHING DEV');
+  hideCmdOutput();
+  try {
+    const res = await fetch(`${API}/runner/cmd`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ projectId: selectedProjectId, command: 'dev', timeoutSec: 30 })
+    });
+    if (!res.ok) { const e = await res.json(); showCmdOutput('Error: ' + (e.detail || res.statusText), true); return; }
+    const data = await res.json();
+    showCmdOutput(data.stdout || data.stderr || 'Command sent', data.exitCode !== 0);
+  } catch(e) { showCmdOutput('Request failed: ' + e.message, true); }
+  finally { btn.classList.remove('running'); btn.disabled = !runnerState.online; setCoreState(false, 'IDLE'); }
+}
+
+async function runnerRunTests() {
+  if (!selectedProjectId || !runnerState.online) return;
+  const btn = document.getElementById('btnRunTests');
+  btn.classList.add('running'); btn.disabled = true;
+  setCoreState(true, 'RUNNING TESTS');
+  hideCmdOutput();
+  try {
+    const res = await fetch(`${API}/runner/cmd`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ projectId: selectedProjectId, command: 'test', timeoutSec: 300 })
+    });
+    if (!res.ok) { const e = await res.json(); showCmdOutput('Error: ' + (e.detail || res.statusText), true); return; }
+    const data = await res.json();
+    showCmdOutput(data.stdout || data.stderr || 'Tests complete', data.exitCode !== 0);
+  } catch(e) { showCmdOutput('Request failed: ' + e.message, true); }
+  finally { btn.classList.remove('running'); btn.disabled = !runnerState.online; setCoreState(false, 'IDLE'); }
+}
+
+async function runnerClaudePrompt() {
+  if (!selectedProjectId || !runnerState.online) return;
+  const prompt = window.prompt('Enter a task for Claude Code (runs on your local machine):');
+  if (!prompt || !prompt.trim()) return;
+  const btn = document.getElementById('btnClaudeTask');
+  btn.classList.add('running'); btn.disabled = true;
+  setCoreState(true, 'CLAUDE TASK');
+  hideCmdOutput();
+  showCmdOutput('Running Claude task... this may take a while.', false);
+  try {
+    const res = await fetch(`${API}/runner/claude/run`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ projectId: selectedProjectId, prompt: prompt.trim(), timeoutSec: 7200 })
+    });
+    if (!res.ok) { const e = await res.json(); showCmdOutput('Error: ' + (e.detail || res.statusText), true); return; }
+    const data = await res.json();
+    const output = data.stdout || '';
+    const err = data.stderr || '';
+    showCmdOutput((output + (err ? '\n\nSTDERR:\n' + err : '')).trim() || 'Done (no output)', data.exitCode !== 0);
+  } catch(e) { showCmdOutput('Request failed: ' + e.message, true); }
+  finally { btn.classList.remove('running'); btn.disabled = !runnerState.online; setCoreState(false, 'IDLE'); }
+}
+
 // ═══ REFRESH ════════════════════════════════════════════════════════════
 
 async function refreshAll() {
   setCoreState(true, 'REFRESHING');
-  await Promise.all([loadUsageData(true), loadLimits(), loadProjects()]);
+  await Promise.all([loadUsageData(true), loadLimits(), loadProjects(), pollRunnerStatus()]);
+  if (runnerState.online) fetchAllDevStates();
   setTimeout(()=>setCoreState(false,'IDLE'),1500);
 }
 
@@ -1471,10 +1780,14 @@ loadUsageData();
 loadLimits();
 loadAgents();
 loadProjects();
+pollRunnerStatus();
 connectHealthSSE();
 setInterval(()=>loadUsageData(), 30000);
 setInterval(()=>loadLimits(), 15000);
 setInterval(()=>loadProjects(), 60000);
+setInterval(()=>pollRunnerStatus(), 10000);
+// Refresh dev states every 30s when runner is online
+setInterval(()=>{ if (runnerState.online) fetchAllDevStates(); }, 30000);
 </script>
 </body>
 </html>
