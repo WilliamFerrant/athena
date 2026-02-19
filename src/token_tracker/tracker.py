@@ -234,6 +234,92 @@ class TokenTracker:
             ),
         )
 
+    async def create_message_stream(
+        self,
+        *,
+        agent_id: str,
+        model: str | None = None,
+        system: str | None = None,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        **kwargs: Any,
+    ):
+        """Async generator — yields stdout chunks from Claude CLI.
+
+        Uses Popen to read output line-by-line so the SSE endpoint can
+        push partial results as they arrive.
+        """
+        import asyncio
+
+        if self.is_over_budget:
+            yield {"type": "error", "data": "Daily call limit reached"}
+            return
+
+        prompt = self._build_prompt(system, messages)
+        cmd = [self._claude_cmd, "-p"]
+        if model:
+            cmd.extend(["--model", model])
+
+        t0 = time.perf_counter()
+        full_output = ""
+
+        def _run_streaming():
+            """Run subprocess in thread, collecting output."""
+            nonlocal full_output
+            chunks = []
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                proc.stdin.write(prompt)
+                proc.stdin.close()
+
+                # Read line-by-line
+                for line in proc.stdout:
+                    chunks.append(line)
+
+                proc.wait(timeout=300)
+                if proc.returncode != 0 and not chunks:
+                    err = proc.stderr.read().strip()
+                    chunks.append(f"Error: {err or 'Claude CLI returned non-zero'}")
+            except subprocess.TimeoutExpired:
+                chunks.append("Error: Claude CLI timed out after 300s")
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+            except FileNotFoundError:
+                chunks.append(
+                    f"Error: Claude CLI not found at '{self._claude_cmd}'."
+                )
+            full_output = "".join(chunks).strip()
+            return chunks
+
+        loop = asyncio.get_event_loop()
+        chunks = await loop.run_in_executor(None, _run_streaming)
+
+        latency = (time.perf_counter() - t0) * 1000
+
+        # Track usage
+        record = UsageRecord(
+            agent_id=agent_id,
+            model=model or settings.default_model,
+            input_chars=len(prompt),
+            output_chars=len(full_output),
+            latency_ms=latency,
+        )
+        self.records.append(record)
+        self._call_count += 1
+
+        # Yield chunks for SSE
+        for chunk in chunks:
+            yield {"type": "chunk", "data": chunk}
+        yield {"type": "done", "data": full_output}
+
     # -- internals -------------------------------------------------------------
 
     @staticmethod

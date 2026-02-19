@@ -817,21 +817,93 @@ async function sendChat(){
   container.innerHTML+=`<div class="msg assistant streaming" id="${pendingId}">Thinking...</div>`;
   container.scrollTop=container.scrollHeight;
 
+  const ctx=focusedProject?`Project: ${focusedProject.name}`:'';
+
+  // Try streaming first, fall back to sync
   try{
-    const ctx=focusedProject?`Project: ${focusedProject.name}`:'';
+    const response = await fetch(`${API}/chat/stream`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({agent,message,task_context:ctx})
+    });
+
+    if(!response.ok){
+      // Fall back to sync endpoint
+      return sendChatSync(message, agent, ctx, pendingId);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let fullText = '';
+    const pending = document.getElementById(pendingId);
+    if(pending) pending.innerHTML = '';
+
+    while(true){
+      const {done, value} = await reader.read();
+      if(done) break;
+      buffer += decoder.decode(value, {stream: true});
+
+      // Parse SSE events from buffer
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      let eventType = '';
+      for(const line of lines){
+        if(line.startsWith('event: ')){
+          eventType = line.substring(7).trim();
+        } else if(line.startsWith('data: ')){
+          const data = line.substring(6);
+          try{
+            const parsed = JSON.parse(data);
+            if(eventType === 'chunk'){
+              fullText += parsed.text || '';
+              if(pending) pending.innerHTML = esc(fullText);
+              container.scrollTop = container.scrollHeight;
+            } else if(eventType === 'done'){
+              fullText = parsed.response || fullText;
+              if(pending){
+                const rt = new Date().toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit'});
+                pending.innerHTML = `${esc(fullText)}<div class="msg-time">${rt}</div>`;
+                pending.classList.remove('streaming');
+              }
+            } else if(eventType === 'error'){
+              if(pending){
+                pending.innerHTML = `<span style="color:var(--red)">Error: ${esc(parsed.detail||'Unknown')}</span>`;
+                pending.classList.remove('streaming');
+              }
+            }
+          }catch(e){}
+        }
+      }
+    }
+
+    // If stream ended without done event
+    if(pending && pending.classList.contains('streaming')){
+      const rt = new Date().toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit'});
+      pending.innerHTML = `${esc(fullText||'(empty response)')}<div class="msg-time">${rt}</div>`;
+      pending.classList.remove('streaming');
+    }
+
+  }catch(e){
+    // Fall back to sync endpoint
+    return sendChatSync(message, agent, ctx, pendingId);
+  }
+}
+
+async function sendChatSync(message, agent, ctx, pendingId){
+  try{
     const r=await fetch(`${API}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent,message,task_context:ctx})});
     const pending=document.getElementById(pendingId);
     if(!r.ok){
       const err=await r.json();
-      pending.innerHTML=`<span style="color:var(--red)">Error: ${esc(err.detail||r.statusText)}</span>`;
-      pending.classList.remove('streaming');
+      if(pending){pending.innerHTML=`<span style="color:var(--red)">Error: ${esc(err.detail||r.statusText)}</span>`;pending.classList.remove('streaming');}
       return;
     }
     const data=await r.json();
     const rt=new Date().toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit'});
-    pending.innerHTML=`${esc(data.response)}<div class="msg-time">${rt}</div>`;
-    pending.classList.remove('streaming');
-    container.scrollTop=container.scrollHeight;
+    if(pending){pending.innerHTML=`${esc(data.response)}<div class="msg-time">${rt}</div>`;pending.classList.remove('streaming');}
+    document.getElementById('chatMessages').scrollTop=document.getElementById('chatMessages').scrollHeight;
   }catch(e){
     const p=document.getElementById(pendingId);
     if(p){p.innerHTML='<span style="color:var(--red)">Request failed</span>';p.classList.remove('streaming');}
@@ -845,24 +917,87 @@ async function runRunnerCmd(projectId, command, timeoutSec=120){
   return r.json();
 }
 
+// Streaming version of runner command — shows progress in terminal window
+async function runRunnerCmdStream(projectId, command, wid, timeoutSec=120){
+  try{
+    const response = await fetch(`${API}/runner/cmd/stream`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({projectId,command,timeoutSec})
+    });
+    if(!response.ok){
+      // Fall back to sync
+      const result = await runRunnerCmd(projectId, command, timeoutSec);
+      const output = (result.stdout||'')+(result.stderr?'\n'+result.stderr:'');
+      updateTermWindow(wid, output, result.exitCode!==0);
+      return result;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalResult = null;
+
+    while(true){
+      const {done, value} = await reader.read();
+      if(done) break;
+      buffer += decoder.decode(value, {stream: true});
+
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      let eventType = '';
+      for(const line of lines){
+        if(line.startsWith('event: ')){
+          eventType = line.substring(7).trim();
+        } else if(line.startsWith('data: ')){
+          try{
+            const parsed = JSON.parse(line.substring(6));
+            if(eventType === 'running'){
+              updateTermWindow(wid, `⏳ Running... (${parsed.elapsed}s)`, false);
+            } else if(eventType === 'output'){
+              finalResult = parsed;
+              const output = (parsed.stdout||'')+(parsed.stderr?'\n'+parsed.stderr:'');
+              updateTermWindow(wid, output, parsed.exitCode!==0);
+            } else if(eventType === 'error'){
+              updateTermWindow(wid, '❌ '+parsed.detail, true);
+              throw new Error(parsed.detail);
+            }
+          }catch(e){ if(e.message && !e.message.includes('JSON')) throw e; }
+        }
+      }
+    }
+    return finalResult;
+  }catch(e){
+    // If streaming fails, fall back to sync
+    if(!e.message?.includes('Runner')){
+      const result = await runRunnerCmd(projectId, command, timeoutSec);
+      const output = (result.stdout||'')+(result.stderr?'\n'+result.stderr:'');
+      updateTermWindow(wid, output, result.exitCode!==0);
+      return result;
+    }
+    throw e;
+  }
+}
+
 async function launchDev(){
   if(!focusedId||!runnerOnline)return;
   const btn=document.getElementById('btnLaunch');
   btn.classList.add('running');btn.disabled=true;
   addActivity('▶️','Launching dev server...');
-  const wid=openTermWindow(`Dev: ${focusedProject?.name||focusedId}`,'Starting dev server...\n',false);
+  const wid=openTermWindow(`Dev: ${focusedProject?.name||focusedId}`,'⏳ Starting dev server...\n',false);
   try{
-    const result=await runRunnerCmd(focusedId,'dev',30);
-    const output=(result.stdout||'')+(result.stderr?'\n'+result.stderr:'');
-    updateTermWindow(wid,output,result.exitCode!==0);
-    addActivity(result.exitCode===0?'✅':'❌',`Dev server ${result.exitCode===0?'started':'failed'}`);
-    // Try to extract URL from output
-    const urlMatch=output.match(/https?:\/\/localhost:\d+/);
-    if(urlMatch){
-      devUrl=urlMatch[0];
-      updateCenterHeader();
-      updateChatCtx();
-      addActivity('🔗',`Dev URL: ${devUrl}`);
+    const result=await runRunnerCmdStream(focusedId,'dev',wid,30);
+    if(result){
+      const output=(result.stdout||'')+(result.stderr?'\n'+result.stderr:'');
+      addActivity(result.exitCode===0?'✅':'❌',`Dev server ${result.exitCode===0?'started':'failed'}`);
+      const urlMatch=output.match(/https?:\/\/localhost:\d+/);
+      if(urlMatch){
+        devUrl=urlMatch[0];
+        updateCenterHeader();
+        updateChatCtx();
+        addActivity('🔗',`Dev URL: ${devUrl}`);
+      }
     }
   }catch(e){
     updateTermWindow(wid,'Error: '+e.message,true);
@@ -875,12 +1010,12 @@ async function runTests(){
   const btn=document.getElementById('btnTests');
   btn.classList.add('running');btn.disabled=true;
   addActivity('🧪','Running tests...');
-  const wid=openTermWindow(`Tests: ${focusedProject?.name||focusedId}`,'Running tests...\n',false);
+  const wid=openTermWindow(`Tests: ${focusedProject?.name||focusedId}`,'⏳ Running tests...\n',false);
   try{
-    const result=await runRunnerCmd(focusedId,'test',300);
-    const output=(result.stdout||'')+(result.stderr?'\n'+result.stderr:'');
-    updateTermWindow(wid,output,result.exitCode!==0);
-    addActivity(result.exitCode===0?'✅':'❌',`Tests ${result.exitCode===0?'passed':'failed'}`);
+    const result=await runRunnerCmdStream(focusedId,'test',wid,300);
+    if(result){
+      addActivity(result.exitCode===0?'✅':'❌',`Tests ${result.exitCode===0?'passed':'failed'}`);
+    }
   }catch(e){
     updateTermWindow(wid,'Error: '+e.message,true);
     addActivity('❌','Tests failed: '+e.message);

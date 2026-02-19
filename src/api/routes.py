@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from src.memory.mem0_client import AgentMemory
@@ -289,3 +292,153 @@ def clear_agent_memories(agent_id: str) -> dict[str, str]:
         return {"status": f"memories cleared for {agent_id}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Memory error: {e}")
+
+
+# -- Streaming endpoints (SSE) ------------------------------------------------
+
+
+class StreamChatRequest(BaseModel):
+    agent: str
+    message: str
+    task_context: str = ""
+
+
+@router.post("/chat/stream")
+async def stream_chat(req: StreamChatRequest, request: Request):
+    """Stream agent response via SSE.
+
+    Events:
+      event: start    data: {"agent":"..."}
+      event: chunk    data: {"text":"..."}
+      event: done     data: {"response":"...","agent_id":"...","token_summary":{...}}
+      event: error    data: {"detail":"..."}
+    """
+    tracker: TokenTracker = request.app.state.tracker
+
+    if tracker.is_over_budget:
+        raise HTTPException(status_code=429, detail="Daily call limit exhausted")
+
+    from src.agents.backend import BackendAgent
+    from src.agents.frontend import FrontendAgent
+    from src.agents.manager import ManagerAgent
+    from src.agents.tester import TesterAgent
+
+    agent_classes = {
+        "frontend": FrontendAgent,
+        "backend": BackendAgent,
+        "tester": TesterAgent,
+        "manager": ManagerAgent,
+    }
+
+    agent_cls = agent_classes.get(req.agent)
+    if not agent_cls:
+        raise HTTPException(status_code=400, detail=f"Unknown agent: {req.agent}")
+
+    agent = agent_cls(agent_id=req.agent, tracker=tracker)
+
+    async def event_generator():
+        # Send start event
+        yield f"event: start\ndata: {json.dumps({'agent': req.agent})}\n\n"
+
+        full_text = ""
+        try:
+            system = agent.system_prompt(req.task_context)
+            messages = [{"role": "user", "content": req.message}]
+            agent.drives.tick(minutes_worked=0.5)
+
+            async for event in tracker.create_message_stream(
+                agent_id=req.agent,
+                model=agent.default_model,
+                system=system,
+                messages=messages,
+            ):
+                if event["type"] == "chunk":
+                    chunk = event["data"]
+                    full_text += chunk
+                    yield f"event: chunk\ndata: {json.dumps({'text': chunk})}\n\n"
+                elif event["type"] == "error":
+                    yield f"event: error\ndata: {json.dumps({'detail': event['data']})}\n\n"
+                    return
+                elif event["type"] == "done":
+                    full_text = event["data"]
+
+            # Send done event with full response
+            summary = tracker.agent_summary(req.agent)
+            yield f"event: done\ndata: {json.dumps({'response': full_text, 'agent_id': req.agent, 'token_summary': summary})}\n\n"
+
+        except Exception as e:
+            logger.exception("Stream chat error")
+            yield f"event: error\ndata: {json.dumps({'detail': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+class StreamTaskRequest(BaseModel):
+    task: str
+    use_memory: bool = True
+
+
+@router.post("/orchestrator/stream")
+async def stream_orchestrator(req: StreamTaskRequest, request: Request):
+    """Stream orchestrator progress via SSE.
+
+    Events:
+      event: phase     data: {"phase":"planning|executing|reviewing|synthesizing","detail":"..."}
+      event: subtask   data: {"agent":"...","task":"...","status":"running|done|error","result":"..."}
+      event: done      data: {"plan":"...","final_output":"...","subtask_count":N,"token_summary":{...}}
+      event: error     data: {"detail":"..."}
+    """
+    tracker: TokenTracker = request.app.state.tracker
+
+    if tracker.is_over_budget:
+        raise HTTPException(status_code=429, detail="Daily call limit exhausted")
+
+    async def event_generator():
+        yield f"event: phase\ndata: {json.dumps({'phase': 'starting', 'detail': 'Submitting task to orchestrator'})}\n\n"
+
+        try:
+            # Run the task in a thread since it's synchronous
+            loop = asyncio.get_event_loop()
+            yield f"event: phase\ndata: {json.dumps({'phase': 'planning', 'detail': 'Manager is decomposing the task...'})}\n\n"
+
+            result = await loop.run_in_executor(
+                None,
+                lambda: run_task(req.task, tracker=tracker, use_memory=req.use_memory),
+            )
+
+            plan = result.get("plan", "")
+            subtasks = result.get("subtasks", [])
+            final_output = result.get("final_output", "")
+
+            if plan:
+                yield f"event: phase\ndata: {json.dumps({'phase': 'planned', 'detail': plan})}\n\n"
+
+            for i, st in enumerate(subtasks):
+                yield f"event: subtask\ndata: {json.dumps({'index': i, 'agent': st.get('agent', '?'), 'task': st.get('task', ''), 'status': 'done', 'result': st.get('result', '')[:500]})}\n\n"
+
+            yield f"event: phase\ndata: {json.dumps({'phase': 'synthesizing', 'detail': 'Building final output...'})}\n\n"
+
+            summary = tracker.global_summary()
+            yield f"event: done\ndata: {json.dumps({'plan': plan, 'final_output': final_output, 'subtask_count': len(subtasks), 'token_summary': summary})}\n\n"
+
+        except Exception as e:
+            logger.exception("Stream orchestrator error")
+            yield f"event: error\ndata: {json.dumps({'detail': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
