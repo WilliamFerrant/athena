@@ -1,0 +1,62 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ai-companion-claude"
+version = "0.1.0"
+description = "Multi-agent system for full-stack freelance development"
+requires-python = ">=3.10"
+dependencies = [
+    "langgraph>=0.3.0",
+    "langchain-core>=0.3.0",
+    "mem0ai>=0.1.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.7.0",
+    "httpx>=0.28.0",
+    "rich>=13.9.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+]
+
+[project.scripts]
+companion = "src.main:main"
+companion-runner = "src.runner.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# camelCase field names are required by the runner API contract (JSON)
+"src/runner/endpoints.py" = ["N815"]
+"src/runner_connector/models.py" = ["N815"]
+"src/api/runner_routes.py" = ["N815"]
+"tests/test_runner.py" = ["N815"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "integration: marks tests that call external APIs",
+]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true

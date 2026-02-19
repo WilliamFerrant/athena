@@ -1,0 +1,1 @@
+Too many parameters - .venv|node_modules|__pycache__|dist|build|.git

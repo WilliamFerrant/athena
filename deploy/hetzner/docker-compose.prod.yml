@@ -1,0 +1,33 @@
+services:
+  app:
+    image: ai-companion:latest
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - ../../.env
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - app
+    restart: always

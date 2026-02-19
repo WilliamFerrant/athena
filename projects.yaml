@@ -1,0 +1,104 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# Project Registry — single source of truth for all projects
+# The dashboard, orchestrator, and health engine all read from this file.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+projects:
+
+  # ── Athena (this project) ──────────────────────────────────────────
+  - id: ai-companion
+    name: Athena Dashboard
+    group: internal          # active-clients | internal | paused | r-and-d
+    priority: high           # high | medium | low
+    ownership: personal
+
+    repo_path: "C:/web dev/ai-companion-claude"
+    git_remote: ""
+
+    envs:
+      local:
+        app_url: "http://localhost:8000"
+        api_url: "http://localhost:8000/api"
+
+    health_checks:
+      - id: api-health
+        type: http
+        url: "http://localhost:8000/api/status"
+        method: GET
+        expected_status: 200
+        timeout_ms: 5000
+        interval_seconds: 60
+
+    runbooks:
+      - label: "Start dev server"
+        command: "python -m src.main serve"
+      - label: "Run tests"
+        command: "python -m pytest tests/ -v"
+
+    tags: [python, fastapi, langgraph, ai]
+
+  # ── ABI Guide ──────────────────────────────────────────────────────────
+  - id: abiguide
+    name: ABI Guide
+    group: active-clients
+    priority: high
+    ownership: client
+
+    repo_path: "C:/web dev/abiguide.dev"
+    git_remote: "https://github.com/WilliamFerrant/abiguide.dev"
+
+    local:
+      path_windows: "C:\\web dev\\abiguide.dev"
+
+    commands:
+      dev: "npm run dev"
+      test: "npm test"
+      lint: "npm run lint"
+      build: "npm run build"
+
+    envs:
+      local:
+        app_url: "http://localhost:3000"
+      prod:
+        app_url: "https://abi-guide.dev"
+
+    health_checks:
+      - id: prod-http
+        type: http
+        url: "https://abi-guide.dev"
+        expected_status: 200
+        timeout_ms: 10000
+        interval_seconds: 60
+      - id: tls-cert
+        type: tls
+        hostname: "abi-guide.dev"
+        warn_days_before: 14
+        interval_seconds: 3600
+      - id: dns-resolve
+        type: dns
+        hostname: "abi-guide.dev"
+        interval_seconds: 300
+
+    runbooks:
+      - label: "Start dev server"
+        command: "npm run dev"
+      - label: "Run lint"
+        command: "npm run lint"
+      - label: "Build"
+        command: "npm run build"
+
+    tags: [nextjs, typescript, client]
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Check type reference:
+#
+#   http    — HTTP(S) GET/HEAD, check status code + latency
+#   tls     — TLS certificate expiry check (warn X days before)
+#   dns     — DNS resolution check
+#   tcp     — Raw TCP port check (connect timeout)
+#   command — Run a local command, check exit code
+#
+# Groups: active-clients, internal, paused, r-and-d
+# (projects with DOWN/DEGRADED checks auto-appear in "incidents" group)
+# ═══════════════════════════════════════════════════════════════════════════════
+
