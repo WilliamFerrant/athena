@@ -442,9 +442,10 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
 .mem-clear-btn{background:none;border:1px solid var(--red);color:var(--red);padding:5px 12px;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;transition:all .2s}
 .mem-clear-btn:hover{background:var(--red);color:var(--bg)}
 .mem-stats{font-size:10px;color:var(--muted);padding:4px 0}
-.usage-charts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
-.usage-chart-box{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px}
-.usage-chart-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent);margin-bottom:8px}
+.usage-charts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:4px}
+.usage-chart-box{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px;height:200px;display:flex;flex-direction:column}
+.usage-chart-box canvas{flex:1;min-height:0}
+.usage-chart-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent);margin-bottom:8px;flex-shrink:0}
 .usage-refresh-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
 .usage-refresh-btn{background:none;border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:4px;font-size:10px;cursor:pointer;transition:all .2s}
 .usage-refresh-btn:hover{border-color:var(--accent);color:var(--accent)}
@@ -640,7 +641,7 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
 </div>
 
 <!-- TASK BOARD OVERLAY -->
-<div class="board-overlay" id="boardOverlay">
+<div class="board-overlay" id="boardOverlay" onclick="if(event.target===this)toggleTaskBoard()">
   <div class="board-container">
     <div class="board-header">
       <span class="board-title">&#9744; Task Board</span>
@@ -656,7 +657,7 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
 </div>
 
 <!-- USAGE OVERLAY -->
-<div class="usage-overlay" id="usageOverlay">
+<div class="usage-overlay" id="usageOverlay" onclick="if(event.target===this)toggleUsage()">
   <div class="usage-container">
     <div class="usage-header">
       <span class="usage-title">&#128200; Usage &amp; Budget</span>
@@ -669,7 +670,7 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
 </div>
 
 <!-- ORCHESTRATOR OVERLAY -->
-<div class="orch-overlay" id="orchOverlay">
+<div class="orch-overlay" id="orchOverlay" onclick="if(event.target===this)toggleOrchestrator()">
   <div class="orch-container">
     <div class="orch-header">
       <span class="orch-title">&#9889; Run Mission</span>
@@ -689,7 +690,7 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
 </div>
 
 <!-- INCIDENTS OVERLAY -->
-<div class="usage-overlay" id="incidentsOverlay">
+<div class="usage-overlay" id="incidentsOverlay" onclick="if(event.target===this)closeIncidents()">
   <div class="usage-container">
     <div class="usage-header">
       <span class="usage-title">&#9888; Incidents &amp; History</span>
@@ -702,7 +703,7 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
 </div>
 
 <!-- MEMORY OVERLAY -->
-<div class="mem-overlay" id="memOverlay">
+<div class="mem-overlay" id="memOverlay" onclick="if(event.target===this)toggleMemory()">
   <div class="mem-container">
     <div class="mem-header">
       <span class="mem-title">&#128065; Agent Memory</span>
@@ -725,7 +726,7 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
 </div>
 
 <!-- DRIVES OVERLAY -->
-<div class="drives-overlay" id="drivesOverlay">
+<div class="drives-overlay" id="drivesOverlay" onclick="if(event.target===this)toggleDrives()">
   <div class="drives-container">
     <div class="drives-header">
       <span class="drives-title">&#9889; Agent Drives &amp; RL Optimizer</span>
@@ -738,7 +739,7 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
 </div>
 
 <!-- KNOWLEDGE GRAPH OVERLAY -->
-<div class="graph-overlay" id="graphOverlay">
+<div class="graph-overlay" id="graphOverlay" onclick="if(event.target===this)toggleGraph()">
   <div class="graph-container">
     <div class="graph-header">
       <span class="graph-title">&#128279; Knowledge Graph</span>
@@ -2358,25 +2359,19 @@ async function loadUsageData(){
       html+='</div>';
     }
 
-    // Charts (canvases — data injected after innerHTML set)
+    // Charts — always render both boxes side by side
     const hasDaily = chartR && chartR.daily_labels && chartR.daily_labels.length;
     const hasModels = chartR && chartR.model_labels && chartR.model_labels.length;
-    if(hasDaily || hasModels){
-      html+='<div class="usage-charts">';
-      if(hasDaily){
-        html+=`<div class="usage-chart-box">
-          <div class="usage-chart-label">Daily Tokens (14d)</div>
-          <canvas id="usageDailyCanvas" height="140"></canvas>
-        </div>`;
-      }
-      if(hasModels){
-        html+=`<div class="usage-chart-box">
-          <div class="usage-chart-label">By Model</div>
-          <canvas id="usageModelCanvas" height="140"></canvas>
-        </div>`;
-      }
-      html+='</div>';
-    }
+    html+='<div class="usage-charts">';
+    html+=`<div class="usage-chart-box">
+      <div class="usage-chart-label">Daily Tokens (14d)</div>
+      ${hasDaily ? '<canvas id="usageDailyCanvas"></canvas>' : '<div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px">No session data yet</div>'}
+    </div>`;
+    html+=`<div class="usage-chart-box">
+      <div class="usage-chart-label">By Model</div>
+      ${hasModels ? '<canvas id="usageModelCanvas"></canvas>' : '<div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px">No model data yet</div>'}
+    </div>`;
+    html+='</div>';
 
     // Insights
     if(chartR && chartR.insights && chartR.insights.length){
