@@ -449,6 +449,68 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
 .usage-refresh-btn{background:none;border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:4px;font-size:10px;cursor:pointer;transition:all .2s}
 .usage-refresh-btn:hover{border-color:var(--accent);color:var(--accent)}
 .usage-auto-tag{font-size:9px;color:var(--muted)}
+
+/* ═══ DRIVES PANEL ════════════════════════════════════════════════════════════ */
+.drives-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:900;display:none;align-items:center;justify-content:center;padding:40px 20px}
+.drives-overlay.open{display:flex}
+.drives-container{background:var(--bg);border:1px solid var(--border);border-radius:10px;width:100%;max-width:680px;max-height:82vh;display:flex;flex-direction:column;overflow:hidden}
+.drives-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
+.drives-title{font-size:13px;font-weight:700;letter-spacing:.5px;color:var(--text-bright)}
+.drives-body{padding:16px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:12px}
+.drives-agent-card{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:12px 14px}
+.drives-agent-name{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+.drives-status-tag{font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px;background:var(--surface3);color:var(--text)}
+.drives-status-tag.zone{background:var(--green-dim);color:var(--green)}
+.drives-status-tag.working{background:var(--blue-dim);color:var(--blue)}
+.drives-status-tag.exhausted,.drives-status-tag.demoralized,.drives-status-tag.distracted,.drives-status-tag.sluggish{background:var(--yellow-dim);color:var(--yellow)}
+.drive-row{display:grid;grid-template-columns:70px 1fr 36px;align-items:center;gap:8px;margin-bottom:5px}
+.drive-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
+.drive-bar-wrap{background:var(--surface3);border-radius:3px;height:5px;overflow:hidden}
+.drive-bar{height:100%;border-radius:3px;transition:width .5s ease}
+.drive-bar.energy{background:var(--green)}
+.drive-bar.focus{background:var(--blue)}
+.drive-bar.morale{background:var(--purple)}
+.drive-bar.knowledge{background:var(--cyan)}
+.drive-val{font-size:9px;font-family:var(--font-mono);color:var(--muted);text-align:right}
+.drives-rl-section{border-top:1px solid var(--border);padding-top:14px;margin-top:4px}
+.drives-rl-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent);margin-bottom:10px}
+.drives-rl-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.drives-rl-btn{background:var(--accent);border:none;color:var(--bg);padding:6px 16px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;transition:all .2s;letter-spacing:.3px}
+.drives-rl-btn:hover{background:var(--accent2)}
+.drives-rl-btn:disabled{opacity:.5;cursor:not-allowed}
+.drives-rl-episodes{background:var(--surface3);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:4px;font-size:11px;width:56px;text-align:center}
+.drives-rl-result{margin-top:10px;background:var(--surface3);border-radius:5px;padding:10px 12px;font-size:11px;font-family:var(--font-mono);color:var(--text)}
+.drives-rl-seq{margin-top:6px;font-size:10px;color:var(--muted);word-break:break-all;line-height:1.6}
+.drives-eff-row{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:10px;color:var(--muted)}
+.drives-eff-bar-wrap{flex:1;background:var(--surface3);border-radius:3px;height:3px;overflow:hidden}
+.drives-eff-bar{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--yellow),var(--green));transition:width .5s ease}
+
+/* ═══ KNOWLEDGE GRAPH PANEL ═══════════════════════════════════════════════════ */
+.graph-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:900;display:none;align-items:center;justify-content:center;padding:30px}
+.graph-overlay.open{display:flex}
+.graph-container{background:var(--bg);border:1px solid var(--border);border-radius:10px;width:100%;max-width:900px;height:80vh;display:flex;flex-direction:column;overflow:hidden}
+.graph-header{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
+.graph-title{font-size:13px;font-weight:700;letter-spacing:.5px;color:var(--text-bright)}
+.graph-toolbar{display:flex;align-items:center;gap:10px}
+.graph-refresh-btn{background:none;border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:4px;font-size:10px;cursor:pointer;transition:all .2s}
+.graph-refresh-btn:hover{border-color:var(--accent);color:var(--accent)}
+.graph-stats-bar{font-size:10px;color:var(--muted);font-family:var(--font-mono)}
+.graph-body{flex:1;display:flex;overflow:hidden}
+.graph-canvas-wrap{flex:1;position:relative;background:var(--surface2)}
+#graphCanvas{width:100%;height:100%;display:block}
+.graph-sidebar{width:220px;border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.graph-sidebar-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent);padding:10px 12px;border-bottom:1px solid var(--border)}
+.graph-node-list{flex:1;overflow-y:auto;padding:8px}
+.graph-node-item{padding:5px 8px;border-radius:4px;margin-bottom:3px;cursor:pointer;transition:background .15s;border:1px solid transparent}
+.graph-node-item:hover{background:var(--surface3);border-color:var(--border)}
+.graph-node-item.selected{background:var(--accent-dim);border-color:var(--accent)}
+.graph-node-label{font-size:10px;color:var(--text);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.graph-node-meta{font-size:9px;color:var(--muted)}
+.graph-empty{color:var(--muted);font-size:11px;text-align:center;padding:30px 16px}
+
+/* ═══ INJECTION TOAST ═════════════════════════════════════════════════════════ */
+.injection-toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);background:#3a1515;border:1px solid var(--red);color:var(--red);padding:10px 20px;border-radius:7px;font-size:12px;font-weight:600;z-index:9999;transition:transform .3s cubic-bezier(.4,0,.2,1),opacity .3s;opacity:0;pointer-events:none;max-width:480px;text-align:center}
+.injection-toast.show{transform:translateX(-50%) translateY(0);opacity:1}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 </head>
@@ -466,6 +528,8 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
     <button class="tb-btn" id="tbBoard" onclick="toggleTaskBoard()">&#9744; Board</button>
     <button class="tb-btn" onclick="toggleUsage()">&#128200; Usage</button>
     <button class="tb-btn" onclick="toggleOrchestrator()">&#9889; Mission</button>
+    <button class="tb-btn" onclick="toggleDrives()">&#9889; Drives</button>
+    <button class="tb-btn" onclick="toggleGraph()">&#128279; Graph</button>
     <button class="tb-btn" onclick="toggleMemory()">&#128065; Memory</button>
     <button class="tb-btn bridge-only" onclick="navigateToWorkshop()">&#128736; Workshop</button>
     <button class="tb-btn workshop-only" onclick="navigateToBridge()">&#127758; Bridge</button>
@@ -659,6 +723,47 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
     </div>
   </div>
 </div>
+
+<!-- DRIVES OVERLAY -->
+<div class="drives-overlay" id="drivesOverlay">
+  <div class="drives-container">
+    <div class="drives-header">
+      <span class="drives-title">&#9889; Agent Drives &amp; RL Optimizer</span>
+      <button class="board-close" onclick="toggleDrives()">&times;</button>
+    </div>
+    <div class="drives-body" id="drivesBody">
+      <div style="color:var(--muted);text-align:center;padding:20px;font-size:12px">Loading drive states...</div>
+    </div>
+  </div>
+</div>
+
+<!-- KNOWLEDGE GRAPH OVERLAY -->
+<div class="graph-overlay" id="graphOverlay">
+  <div class="graph-container">
+    <div class="graph-header">
+      <span class="graph-title">&#128279; Knowledge Graph</span>
+      <div class="graph-toolbar">
+        <span class="graph-stats-bar" id="graphStats">nodes: — edges: —</span>
+        <button class="graph-refresh-btn" onclick="loadGraphData()">&#8635; Refresh</button>
+        <button class="board-close" onclick="toggleGraph()">&times;</button>
+      </div>
+    </div>
+    <div class="graph-body">
+      <div class="graph-canvas-wrap">
+        <canvas id="graphCanvas"></canvas>
+      </div>
+      <div class="graph-sidebar">
+        <div class="graph-sidebar-title">Nodes</div>
+        <div class="graph-node-list" id="graphNodeList">
+          <div class="graph-empty">No nodes in graph yet.<br><br>Nodes appear as agents store memories during tasks.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- INJECTION BLOCKED TOAST -->
+<div class="injection-toast" id="injectionToast">&#128683; Prompt injection detected &amp; blocked</div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
      ATHENA SCENE MODULES (must load before inline script)
@@ -1478,6 +1583,17 @@ async function sendChat(){
     });
 
     if(!response.ok){
+      // Check if the server rejected due to injection detection
+      try{
+        const errBody = await response.clone().json();
+        const detail = errBody?.detail || '';
+        if(detail.toLowerCase().includes('injection') || detail.toLowerCase().includes('blocked')){
+          showInjectionToast(detail);
+          const pending = document.getElementById(pendingId);
+          if(pending){ pending.innerHTML=`<span style="color:var(--red)">🚫 ${esc(detail)}</span>`; pending.classList.remove('streaming'); }
+          return;
+        }
+      }catch(_){}
       return sendChatSync(message, agent, ctx, pendingId);
     }
 
@@ -1516,8 +1632,12 @@ async function sendChat(){
                 pending.classList.remove('streaming');
               }
             } else if(eventType === 'error'){
+              const detail = parsed.detail || 'Unknown error';
+              if(detail.toLowerCase().includes('injection') || detail.toLowerCase().includes('blocked')){
+                showInjectionToast(detail);
+              }
               if(pending){
-                pending.innerHTML = `<span style="color:var(--red)">Error: ${esc(parsed.detail||'Unknown')}</span>`;
+                pending.innerHTML = `<span style="color:var(--red)">Error: ${esc(detail)}</span>`;
                 pending.classList.remove('streaming');
               }
             }
@@ -1543,7 +1663,11 @@ async function sendChatSync(message, agent, ctx, pendingId){
     const pending=document.getElementById(pendingId);
     if(!r.ok){
       const err=await r.json();
-      if(pending){pending.innerHTML=`<span style="color:var(--red)">Error: ${esc(err.detail||r.statusText)}</span>`;pending.classList.remove('streaming');}
+      const detail = err.detail || r.statusText;
+      if(detail.toLowerCase().includes('injection') || detail.toLowerCase().includes('blocked')){
+        showInjectionToast(detail);
+      }
+      if(pending){pending.innerHTML=`<span style="color:var(--red)">Error: ${esc(detail)}</span>`;pending.classList.remove('streaming');}
       return;
     }
     const data=await r.json();
@@ -2594,12 +2718,272 @@ async function clearMemories(){
   }
 }
 
+// ═══ DRIVES PANEL ════════════════════════════════════════════════════════
+let drivesOpen = false;
+
+function toggleDrives(){
+  drivesOpen = !drivesOpen;
+  const overlay = document.getElementById('drivesOverlay');
+  if(drivesOpen){ overlay.classList.add('open'); loadDrivesData(); }
+  else{ overlay.classList.remove('open'); }
+}
+
+async function loadDrivesData(){
+  const body = document.getElementById('drivesBody');
+  body.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px;font-size:12px">Loading drive states...</div>';
+  try{
+    const data = await fetch(`${API}/drives/status`).then(r=>r.json());
+    const agents = data.agents || [];
+    let html = '';
+    for(const ag of agents){
+      html += renderDriveCard(ag.agent_id, ag.agent_id, ag.drives);
+    }
+    html += renderRLSection();
+    body.innerHTML = html;
+  }catch(e){
+    body.innerHTML = `<div style="color:var(--red);text-align:center;padding:20px">${esc(e.message)}</div>`;
+  }
+}
+
+function renderDriveCard(agentId, agentType, drives){
+  // drives may be null if not yet returned by API; show placeholder bars
+  const d = drives || {};
+  const energy    = d.energy    ?? 80;
+  const focus     = d.focus     ?? 80;
+  const morale    = d.morale    ?? 75;
+  const knowledge = d.knowledge ?? 50;
+  const eff       = d.effectiveness ?? ((energy*0.35 + focus*0.30 + morale*0.25 + knowledge*0.10) / 100);
+  const status    = d.status    ?? 'working';
+  const statusCls = status.replace(/ /g,'_').replace('in_the_','zone');
+
+  const color = n => n >= 70 ? 'var(--green)' : n >= 40 ? 'var(--yellow)' : 'var(--red)';
+  return `<div class="drives-agent-card">
+    <div class="drives-agent-name">
+      ${esc(agentId.toUpperCase())}
+      <span class="drives-status-tag ${escAttr(statusCls)}">${esc(status)}</span>
+    </div>
+    <div class="drives-eff-row">
+      <span>Effectiveness</span>
+      <div class="drives-eff-bar-wrap"><div class="drives-eff-bar" style="width:${Math.round(eff*100)}%"></div></div>
+      <span>${Math.round(eff*100)}%</span>
+    </div>
+    <div style="margin-top:8px">
+      ${driveRow('Energy',    energy,    'energy',    color(energy))}
+      ${driveRow('Focus',     focus,     'focus',     color(focus))}
+      ${driveRow('Morale',    morale,    'morale',    color(morale))}
+      ${driveRow('Knowledge', knowledge, 'knowledge', color(knowledge))}
+    </div>
+  </div>`;
+}
+
+function driveRow(label, val, cls, color){
+  return `<div class="drive-row">
+    <span class="drive-label">${esc(label)}</span>
+    <div class="drive-bar-wrap"><div class="drive-bar ${escAttr(cls)}" style="width:${Math.round(val)}%;background:${color}"></div></div>
+    <span class="drive-val">${Math.round(val)}</span>
+  </div>`;
+}
+
+function renderRLSection(){
+  return `<div class="drives-rl-section">
+    <div class="drives-rl-title">&#129504; RL Drive Optimizer</div>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:10px">Runs gymnasium episodes to find the best recovery event sequence for maximum effectiveness.</p>
+    <div class="drives-rl-controls">
+      <label style="font-size:10px;color:var(--muted)">Episodes:</label>
+      <input class="drives-rl-episodes" id="rlEpisodes" type="number" value="5" min="1" max="20">
+      <button class="drives-rl-btn" id="rlRunBtn" onclick="runRLOptimize()">&#9654; Optimize</button>
+    </div>
+    <div id="rlResult" style="display:none" class="drives-rl-result"></div>
+  </div>`;
+}
+
+async function runRLOptimize(){
+  const btn = document.getElementById('rlRunBtn');
+  const resultDiv = document.getElementById('rlResult');
+  const n = parseInt(document.getElementById('rlEpisodes')?.value || '5');
+  btn.disabled = true;
+  btn.textContent = '⏳ Running...';
+  resultDiv.style.display = 'none';
+  try{
+    const r = await fetch(`${API}/drives/optimize`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({n_episodes: n})
+    }).then(resp=>resp.json());
+    if(r.error){
+      resultDiv.innerHTML = `<span style="color:var(--red)">${esc(r.error)}</span>`;
+    } else {
+      resultDiv.innerHTML = `<div><span style="color:var(--green)">Best reward:</span> ${r.best_episode_reward}</div>
+        <div style="margin-top:4px"><span style="color:var(--muted)">Episodes:</span> ${r.episodes}</div>
+        <div class="drives-rl-seq"><span style="color:var(--muted)">Best sequence:</span> ${esc((r.best_sequence||[]).join(' → '))}</div>`;
+    }
+    resultDiv.style.display = 'block';
+  }catch(e){
+    resultDiv.innerHTML = `<span style="color:var(--red)">${esc(e.message)}</span>`;
+    resultDiv.style.display = 'block';
+  }finally{
+    btn.disabled = false;
+    btn.textContent = '▶ Optimize';
+  }
+}
+
+// ═══ KNOWLEDGE GRAPH PANEL ══════════════════════════════════════════════════
+let graphOpen = false;
+let _graphData = null;
+let _selectedNode = null;
+
+function toggleGraph(){
+  graphOpen = !graphOpen;
+  const overlay = document.getElementById('graphOverlay');
+  if(graphOpen){ overlay.classList.add('open'); loadGraphData(); }
+  else{ overlay.classList.remove('open'); }
+}
+
+async function loadGraphData(){
+  try{
+    const r = await fetch(`${API}/memory/graph`).then(resp=>resp.json());
+    _graphData = r.graph || {nodes:[], edges:[]};
+    const stats = r.stats || {};
+    document.getElementById('graphStats').textContent = `nodes: ${stats.nodes||0}  edges: ${stats.edges||0}`;
+    renderGraphSidebar(_graphData.nodes || []);
+    drawGraph(_graphData);
+  }catch(e){
+    document.getElementById('graphNodeList').innerHTML = `<div class="graph-empty" style="color:var(--red)">${esc(e.message)}</div>`;
+  }
+}
+
+function renderGraphSidebar(nodes){
+  const list = document.getElementById('graphNodeList');
+  if(!nodes.length){
+    list.innerHTML = '<div class="graph-empty">No nodes yet.<br><br>Nodes appear as agents accumulate memories during tasks.</div>';
+    return;
+  }
+  list.innerHTML = nodes.map(n=>`
+    <div class="graph-node-item" id="gni-${escAttr(n.id)}" onclick="selectGraphNode('${escAttr(n.id)}')">
+      <div class="graph-node-label">${esc(n.content||n.id)}</div>
+      <div class="graph-node-meta">${esc(n.agent||'?')} · ${esc(n.topic||'general')}</div>
+    </div>`).join('');
+}
+
+function selectGraphNode(nodeId){
+  _selectedNode = nodeId;
+  document.querySelectorAll('.graph-node-item').forEach(el=>el.classList.remove('selected'));
+  const el = document.getElementById('gni-'+nodeId);
+  if(el) el.classList.add('selected');
+  drawGraph(_graphData, nodeId);
+}
+
+function drawGraph(data, highlightId){
+  const canvas = document.getElementById('graphCanvas');
+  if(!canvas) return;
+  const wrap = canvas.parentElement;
+  canvas.width = wrap.clientWidth;
+  canvas.height = wrap.clientHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  const nodes = data.nodes || [];
+  const edges = data.edges || [];
+  if(!nodes.length){
+    ctx.fillStyle = 'var(--muted)';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('No graph data yet', canvas.width/2, canvas.height/2);
+    return;
+  }
+
+  // Simple force-directed-ish layout: place nodes in a circle
+  const cx = canvas.width/2, cy = canvas.height/2;
+  const r = Math.min(cx,cy) * 0.7;
+  const positions = {};
+  nodes.forEach((n,i)=>{
+    const angle = (2*Math.PI*i)/nodes.length - Math.PI/2;
+    positions[n.id] = { x: cx + r*Math.cos(angle), y: cy + r*Math.sin(angle) };
+  });
+
+  // Draw edges
+  ctx.strokeStyle = '#3a3a3a';
+  ctx.lineWidth = 1;
+  for(const e of edges){
+    const a = positions[e.from], b = positions[e.to];
+    if(!a||!b) continue;
+    ctx.beginPath();
+    ctx.moveTo(a.x,a.y);
+    ctx.lineTo(b.x,b.y);
+    ctx.stroke();
+    // Arrow
+    const angle = Math.atan2(b.y-a.y, b.x-a.x);
+    const ax = b.x - 12*Math.cos(angle), ay = b.y - 12*Math.sin(angle);
+    ctx.beginPath();
+    ctx.moveTo(ax,ay);
+    ctx.lineTo(ax-6*Math.cos(angle-0.4), ay-6*Math.sin(angle-0.4));
+    ctx.lineTo(ax-6*Math.cos(angle+0.4), ay-6*Math.sin(angle+0.4));
+    ctx.closePath();
+    ctx.fillStyle='#3a3a3a';
+    ctx.fill();
+  }
+
+  // Agent colour palette
+  const agentColors = {manager:'#7ca6c4',frontend:'#50b583',backend:'#eab308',tester:'#8b7ec6'};
+
+  // Draw nodes
+  for(const n of nodes){
+    const p = positions[n.id];
+    if(!p) continue;
+    const isHl = n.id === highlightId;
+    const col = agentColors[n.agent] || '#8a8878';
+
+    // Glow for highlighted
+    if(isHl){
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,18,0,2*Math.PI);
+      ctx.fillStyle = col+'40';
+      ctx.fill();
+    }
+
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,isHl?12:9,0,2*Math.PI);
+    ctx.fillStyle = col;
+    ctx.fill();
+    ctx.strokeStyle = isHl ? '#fff' : '#222';
+    ctx.lineWidth = isHl ? 2 : 1;
+    ctx.stroke();
+
+    // Label
+    ctx.fillStyle = isHl ? '#fff' : '#e8e6df';
+    ctx.font = (isHl?'bold ':'')+`10px Inter,sans-serif`;
+    ctx.textAlign = 'center';
+    const label = (n.content||n.id).slice(0,28);
+    ctx.fillText(label, p.x, p.y+26);
+
+    // Topic badge
+    if(n.topic && n.topic !== 'general'){
+      ctx.fillStyle = '#8a8878';
+      ctx.font = '9px Inter,sans-serif';
+      ctx.fillText('['+n.topic+']', p.x, p.y+37);
+    }
+  }
+}
+
+// ═══ INJECTION TOAST ════════════════════════════════════════════════════════
+let _injectionTimer = null;
+
+function showInjectionToast(msg){
+  const toast = document.getElementById('injectionToast');
+  toast.textContent = '🚫 ' + (msg || 'Prompt injection detected & blocked');
+  toast.classList.add('show');
+  clearTimeout(_injectionTimer);
+  _injectionTimer = setTimeout(()=>toast.classList.remove('show'), 4000);
+}
+
 // ═══ ESCAPE KEY HANDLER ═══════════════════════════════════════════════════
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
     if(boardOpen) toggleTaskBoard();
     else if(usageOpen) toggleUsage();
     else if(orchOpen) toggleOrchestrator();
+    else if(drivesOpen) toggleDrives();
+    else if(graphOpen) toggleGraph();
     else if(memOpen) toggleMemory();
     else if(document.getElementById('incidentsOverlay')?.classList.contains('open')) closeIncidents();
   }

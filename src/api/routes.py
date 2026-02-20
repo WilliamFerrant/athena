@@ -183,6 +183,45 @@ def reset_budget(request: Request) -> dict[str, str]:
     return {"status": "budget reset"}
 
 
+# -- Agent drives endpoints ----------------------------------------------------
+
+
+class DrivesOptimizeRequest(BaseModel):
+    n_episodes: int = 5
+
+
+@router.get("/drives/status")
+def get_drives_status() -> dict[str, Any]:
+    """Return drive levels for all agents with fresh DriveSystem instances.
+
+    Note: these are representative starting states; actual per-task drive
+    levels live inside each orchestrator run's agent instances.
+    """
+    from src.agents.sims.drives import DriveSystem
+
+    agents = ["manager", "frontend", "backend", "tester"]
+    return {
+        "agents": [
+            {"agent_id": ag, "drives": DriveSystem().state.to_dict()}
+            for ag in agents
+        ]
+    }
+
+
+@router.post("/drives/optimize")
+def optimize_drives(req: DrivesOptimizeRequest) -> dict[str, Any]:
+    """Run gymnasium RL episodes to find optimal drive recovery sequences.
+
+    Returns the best episode reward and event sequence across *n_episodes*
+    random-policy episodes.  Requires the ``gymnasium`` package.
+    """
+    from src.agents.sims.drives import DriveSystem
+
+    ds = DriveSystem()
+    result = ds.optimize_via_rl(n_episodes=max(1, min(req.n_episodes, 20)))
+    return result
+
+
 # -- Real token usage endpoints (from ~/.claude session data) ------------------
 
 
