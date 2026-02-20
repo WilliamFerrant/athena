@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: athena-config
+  namespace: athena
+  labels:
+    app.kubernetes.io/name: athena
+data:
+  # Claude CLI settings
+  CLAUDE_CLI_PATH: "claude"
+  DAILY_CALL_LIMIT: "200"
+
+  # Server settings
+  HOST: "0.0.0.0"
+  PORT: "8000"
+
+  # Manager backend: auto | claude | openai
+  MANAGER_BACKEND: "auto"
+  OPENAI_MODEL: "gpt-4o"
+
+  # Runner tunnel (VPS polls local runner through reverse SSH)
+  RUNNER_HOST: "http://localhost"
+  RUNNER_PORT: "17777"

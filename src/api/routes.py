@@ -209,6 +209,28 @@ def optimize_drives(req: DrivesOptimizeRequest) -> dict[str, Any]:
     return result
 
 
+class PPOOptimizeRequest(BaseModel):
+    n_episodes: int = 5
+    timesteps: int = 10_000
+    force_retrain: bool = False
+
+
+@router.post("/drives/optimize-ppo")
+def optimize_drives_ppo_endpoint(req: PPOOptimizeRequest) -> dict[str, Any]:
+    """Train a PPO policy and evaluate drive recovery strategies.
+
+    Uses stable-baselines3 PPO if installed, falls back to random policy.
+    The trained model is cached to data/rl_models/ for reuse.
+    """
+    from src.agents.sims.ppo_optimizer import optimize_drives_ppo
+
+    return optimize_drives_ppo(
+        n_episodes=max(1, min(req.n_episodes, 20)),
+        timesteps=max(1000, min(req.timesteps, 100_000)),
+        force_retrain=req.force_retrain,
+    )
+
+
 # -- Real token usage endpoints (from ~/.claude session data) ------------------
 
 

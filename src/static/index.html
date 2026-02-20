@@ -560,8 +560,22 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
 /* ═══ INJECTION TOAST ═════════════════════════════════════════════════════════ */
 .injection-toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);background:#3a1515;border:1px solid var(--red);color:var(--red);padding:10px 20px;border-radius:7px;font-size:12px;font-weight:600;z-index:9999;transition:transform .3s cubic-bezier(.4,0,.2,1),opacity .3s;opacity:0;pointer-events:none;max-width:480px;text-align:center}
 .injection-toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+
+/* ═══ CYTOSCAPE GRAPH UPGRADES ════════════════════════════════════════════ */
+#cyGraph{width:100%;height:100%}
+.graph-toolbar select{background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:2px 6px;border-radius:4px;font-size:10px;cursor:pointer}
+.graph-toolbar select:focus{outline:none;border-color:var(--accent)}
+.graph-toolbar .graph-layout-btn{background:none;border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:4px;font-size:10px;cursor:pointer;transition:all .2s}
+.graph-toolbar .graph-layout-btn:hover{border-color:var(--accent);color:var(--accent)}
+.graph-tooltip{position:absolute;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-size:11px;color:var(--text);pointer-events:none;z-index:910;max-width:260px;box-shadow:0 4px 16px rgba(0,0,0,.5);display:none}
+.graph-tooltip .tt-title{font-weight:700;color:var(--text-bright);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.graph-tooltip .tt-meta{font-size:9px;color:var(--muted)}
+.graph-legend{display:flex;gap:10px;align-items:center;padding:6px 12px;border-top:1px solid var(--border);flex-shrink:0}
+.graph-legend-item{display:flex;align-items:center;gap:4px;font-size:9px;color:var(--muted)}
+.graph-legend-dot{width:8px;height:8px;border-radius:50%}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.30.4/cytoscape.min.js"></script>
 </head>
 <body class="bridge-mode">
 
@@ -796,20 +810,37 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
     <div class="graph-header">
       <span class="graph-title">&#128279; Knowledge Graph</span>
       <div class="graph-toolbar">
+        <select id="graphAgentFilter" onchange="filterGraphByAgent(this.value)" title="Filter by agent">
+          <option value="all">All Agents</option>
+          <option value="manager">Manager</option>
+          <option value="frontend">Frontend</option>
+          <option value="backend">Backend</option>
+          <option value="tester">Tester</option>
+        </select>
+        <button class="graph-layout-btn" onclick="cycleGraphLayout()" title="Toggle layout">&#9638; Layout</button>
+        <button class="graph-refresh-btn" onclick="graphFitView()" title="Fit to screen">&#9713; Fit</button>
         <span class="graph-stats-bar" id="graphStats">nodes: — edges: —</span>
         <button class="graph-refresh-btn" onclick="loadGraphData()">&#8635; Refresh</button>
         <button class="board-close" onclick="toggleGraph()">&times;</button>
       </div>
     </div>
     <div class="graph-body">
-      <div class="graph-canvas-wrap">
-        <canvas id="graphCanvas"></canvas>
+      <div class="graph-canvas-wrap" style="position:relative">
+        <div id="cyGraph"></div>
+        <div class="graph-tooltip" id="graphTooltip"></div>
       </div>
       <div class="graph-sidebar">
         <div class="graph-sidebar-title">Nodes</div>
         <div class="graph-node-list" id="graphNodeList">
           <div class="graph-empty">No nodes in graph yet.<br><br>Nodes appear as agents store memories during tasks.</div>
         </div>
+      </div>
+      <div class="graph-legend">
+        <div class="graph-legend-item"><div class="graph-legend-dot" style="background:#7ca6c4"></div>Manager</div>
+        <div class="graph-legend-item"><div class="graph-legend-dot" style="background:#50b583"></div>Frontend</div>
+        <div class="graph-legend-item"><div class="graph-legend-dot" style="background:#eab308"></div>Backend</div>
+        <div class="graph-legend-item"><div class="graph-legend-dot" style="background:#8b7ec6"></div>Tester</div>
+        <div class="graph-legend-item"><div class="graph-legend-dot" style="background:#8a8878"></div>Other</div>
       </div>
     </div>
   </div>
@@ -3027,16 +3058,20 @@ async function runRLOptimize(){
   }
 }
 
-// ═══ KNOWLEDGE GRAPH PANEL ══════════════════════════════════════════════════
+// ═══ KNOWLEDGE GRAPH PANEL (Cytoscape.js) ═══════════════════════════════════
 let graphOpen = false;
 let _graphData = null;
 let _selectedNode = null;
+let _cy = null;
+let _graphLayoutIdx = 0;
+const _graphLayouts = ['cose','circle','grid','concentric','breadthfirst'];
+const _agentColors = {manager:'#7ca6c4',frontend:'#50b583',backend:'#eab308',tester:'#8b7ec6'};
 
 function toggleGraph(){
   graphOpen = !graphOpen;
   const overlay = document.getElementById('graphOverlay');
   if(graphOpen){ overlay.classList.add('open'); loadGraphData(); }
-  else{ overlay.classList.remove('open'); }
+  else{ overlay.classList.remove('open'); if(_cy){ _cy.destroy(); _cy=null; } }
 }
 
 async function loadGraphData(){
@@ -3046,10 +3081,140 @@ async function loadGraphData(){
     const stats = r.stats || {};
     document.getElementById('graphStats').textContent = `nodes: ${stats.nodes||0}  edges: ${stats.edges||0}`;
     renderGraphSidebar(_graphData.nodes || []);
-    drawGraph(_graphData);
+    initCytoscape(_graphData);
   }catch(e){
     document.getElementById('graphNodeList').innerHTML = `<div class="graph-empty" style="color:var(--red)">${esc(e.message)}</div>`;
   }
+}
+
+function initCytoscape(data){
+  const container = document.getElementById('cyGraph');
+  if(!container || typeof cytoscape === 'undefined') return;
+  if(_cy){ _cy.destroy(); _cy=null; }
+
+  const nodes = (data.nodes||[]).map(n => ({
+    data: {
+      id: n.id,
+      label: (n.content||n.id).slice(0,40),
+      fullContent: n.content||n.id,
+      agent: n.agent||'unknown',
+      topic: n.topic||'general',
+      color: _agentColors[n.agent] || '#8a8878'
+    }
+  }));
+
+  const edges = (data.edges||[]).map((e,i) => ({
+    data: {
+      id: 'e'+i,
+      source: e.from,
+      target: e.to,
+      relation: e.relation||'related'
+    }
+  }));
+
+  _cy = cytoscape({
+    container: container,
+    elements: { nodes, edges },
+    style: [
+      { selector: 'node', style: {
+        'background-color': 'data(color)',
+        'label': 'data(label)',
+        'color': '#e8e6df',
+        'font-size': '9px',
+        'font-family': 'Inter, sans-serif',
+        'text-valign': 'bottom',
+        'text-halign': 'center',
+        'text-margin-y': 6,
+        'width': 22,
+        'height': 22,
+        'border-width': 1,
+        'border-color': '#222',
+        'text-max-width': '100px',
+        'text-wrap': 'ellipsis',
+        'text-outline-color': '#1a1a1a',
+        'text-outline-width': 2,
+        'transition-property': 'width, height, border-color, border-width, background-color',
+        'transition-duration': '0.2s'
+      }},
+      { selector: 'node:selected', style: {
+        'border-color': '#fff',
+        'border-width': 3,
+        'width': 30,
+        'height': 30,
+        'font-weight': 'bold',
+        'color': '#fff',
+        'z-index': 10
+      }},
+      { selector: 'node.highlighted', style: {
+        'border-color': '#7ca6c4',
+        'border-width': 2,
+        'width': 26,
+        'height': 26
+      }},
+      { selector: 'node.faded', style: {
+        'opacity': 0.2
+      }},
+      { selector: 'edge', style: {
+        'width': 1.5,
+        'line-color': '#3a3a3a',
+        'target-arrow-color': '#3a3a3a',
+        'target-arrow-shape': 'triangle',
+        'arrow-scale': 0.7,
+        'curve-style': 'bezier',
+        'opacity': 0.7,
+        'transition-property': 'line-color, opacity, width',
+        'transition-duration': '0.2s'
+      }},
+      { selector: 'edge.highlighted', style: {
+        'line-color': '#7ca6c4',
+        'target-arrow-color': '#7ca6c4',
+        'width': 2.5,
+        'opacity': 1
+      }},
+      { selector: 'edge.faded', style: {
+        'opacity': 0.1
+      }}
+    ],
+    layout: { name:'cose', animate:true, animationDuration:600, nodeRepulsion:()=>6000, idealEdgeLength:()=>80, padding:30 },
+    minZoom: 0.3,
+    maxZoom: 5,
+    wheelSensitivity: 0.3,
+    boxSelectionEnabled: false,
+  });
+
+  // Tooltip on hover
+  const tooltip = document.getElementById('graphTooltip');
+  _cy.on('mouseover','node', evt => {
+    const n = evt.target.data();
+    tooltip.innerHTML = `<div class="tt-title">${esc(n.fullContent)}</div><div class="tt-meta">${esc(n.agent)} \u00b7 ${esc(n.topic)}</div>`;
+    tooltip.style.display = 'block';
+    const pos = evt.renderedPosition;
+    tooltip.style.left = (pos.x + 16) + 'px';
+    tooltip.style.top = (pos.y - 10) + 'px';
+  });
+  _cy.on('mouseout','node', () => { tooltip.style.display = 'none'; });
+
+  // Click to select + highlight neighborhood
+  _cy.on('tap','node', evt => {
+    const node = evt.target;
+    const nodeId = node.data('id');
+    selectGraphNode(nodeId);
+    // Highlight connected nodes
+    _cy.elements().removeClass('highlighted faded');
+    const neighborhood = node.neighborhood().add(node);
+    _cy.elements().not(neighborhood).addClass('faded');
+    neighborhood.addClass('highlighted');
+    node.select();
+  });
+
+  // Click background to deselect
+  _cy.on('tap', evt => {
+    if(evt.target === _cy){
+      _cy.elements().removeClass('highlighted faded');
+      _selectedNode = null;
+      document.querySelectorAll('.graph-node-item').forEach(el=>el.classList.remove('selected'));
+    }
+  });
 }
 
 function renderGraphSidebar(nodes){
@@ -3069,99 +3234,55 @@ function selectGraphNode(nodeId){
   _selectedNode = nodeId;
   document.querySelectorAll('.graph-node-item').forEach(el=>el.classList.remove('selected'));
   const el = document.getElementById('gni-'+nodeId);
-  if(el) el.classList.add('selected');
-  drawGraph(_graphData, nodeId);
+  if(el){ el.classList.add('selected'); el.scrollIntoView({block:'nearest'}); }
+  // Center Cytoscape on node
+  if(_cy){
+    const n = _cy.getElementById(nodeId);
+    if(n.length){
+      _cy.animate({ center: { eles: n }, zoom: 2 }, { duration: 400 });
+      _cy.elements().removeClass('highlighted faded');
+      const neighborhood = n.neighborhood().add(n);
+      _cy.elements().not(neighborhood).addClass('faded');
+      neighborhood.addClass('highlighted');
+      n.select();
+    }
+  }
 }
 
-function drawGraph(data, highlightId){
-  const canvas = document.getElementById('graphCanvas');
-  if(!canvas) return;
-  const wrap = canvas.parentElement;
-  canvas.width = wrap.clientWidth;
-  canvas.height = wrap.clientHeight;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0,0,canvas.width,canvas.height);
+function cycleGraphLayout(){
+  if(!_cy) return;
+  _graphLayoutIdx = (_graphLayoutIdx + 1) % _graphLayouts.length;
+  const name = _graphLayouts[_graphLayoutIdx];
+  const opts = { name, animate:true, animationDuration:500, padding:30 };
+  if(name==='cose'){ opts.nodeRepulsion=()=>6000; opts.idealEdgeLength=()=>80; }
+  if(name==='concentric'){ opts.concentric=n=>n.degree(); opts.levelWidth=()=>2; }
+  _cy.layout(opts).run();
+}
 
-  const nodes = data.nodes || [];
-  const edges = data.edges || [];
-  if(!nodes.length){
-    ctx.fillStyle = 'var(--muted)';
-    ctx.font = '12px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('No graph data yet', canvas.width/2, canvas.height/2);
-    return;
-  }
+function graphFitView(){
+  if(!_cy) return;
+  _cy.animate({ fit: { padding: 30 } }, { duration: 400 });
+  _cy.elements().removeClass('highlighted faded');
+}
 
-  // Simple force-directed-ish layout: place nodes in a circle
-  const cx = canvas.width/2, cy = canvas.height/2;
-  const r = Math.min(cx,cy) * 0.7;
-  const positions = {};
-  nodes.forEach((n,i)=>{
-    const angle = (2*Math.PI*i)/nodes.length - Math.PI/2;
-    positions[n.id] = { x: cx + r*Math.cos(angle), y: cy + r*Math.sin(angle) };
-  });
-
-  // Draw edges
-  ctx.strokeStyle = '#3a3a3a';
-  ctx.lineWidth = 1;
-  for(const e of edges){
-    const a = positions[e.from], b = positions[e.to];
-    if(!a||!b) continue;
-    ctx.beginPath();
-    ctx.moveTo(a.x,a.y);
-    ctx.lineTo(b.x,b.y);
-    ctx.stroke();
-    // Arrow
-    const angle = Math.atan2(b.y-a.y, b.x-a.x);
-    const ax = b.x - 12*Math.cos(angle), ay = b.y - 12*Math.sin(angle);
-    ctx.beginPath();
-    ctx.moveTo(ax,ay);
-    ctx.lineTo(ax-6*Math.cos(angle-0.4), ay-6*Math.sin(angle-0.4));
-    ctx.lineTo(ax-6*Math.cos(angle+0.4), ay-6*Math.sin(angle+0.4));
-    ctx.closePath();
-    ctx.fillStyle='#3a3a3a';
-    ctx.fill();
-  }
-
-  // Agent colour palette
-  const agentColors = {manager:'#7ca6c4',frontend:'#50b583',backend:'#eab308',tester:'#8b7ec6'};
-
-  // Draw nodes
-  for(const n of nodes){
-    const p = positions[n.id];
-    if(!p) continue;
-    const isHl = n.id === highlightId;
-    const col = agentColors[n.agent] || '#8a8878';
-
-    // Glow for highlighted
-    if(isHl){
-      ctx.beginPath();
-      ctx.arc(p.x,p.y,18,0,2*Math.PI);
-      ctx.fillStyle = col+'40';
-      ctx.fill();
-    }
-
-    ctx.beginPath();
-    ctx.arc(p.x,p.y,isHl?12:9,0,2*Math.PI);
-    ctx.fillStyle = col;
-    ctx.fill();
-    ctx.strokeStyle = isHl ? '#fff' : '#222';
-    ctx.lineWidth = isHl ? 2 : 1;
-    ctx.stroke();
-
-    // Label
-    ctx.fillStyle = isHl ? '#fff' : '#e8e6df';
-    ctx.font = (isHl?'bold ':'')+`10px Inter,sans-serif`;
-    ctx.textAlign = 'center';
-    const label = (n.content||n.id).slice(0,28);
-    ctx.fillText(label, p.x, p.y+26);
-
-    // Topic badge
-    if(n.topic && n.topic !== 'general'){
-      ctx.fillStyle = '#8a8878';
-      ctx.font = '9px Inter,sans-serif';
-      ctx.fillText('['+n.topic+']', p.x, p.y+37);
-    }
+function filterGraphByAgent(agent){
+  if(!_cy) return;
+  if(agent==='all'){
+    _cy.elements().removeClass('faded');
+    _cy.nodes().style('display','element');
+  } else {
+    _cy.nodes().forEach(n => {
+      if(n.data('agent')===agent){
+        n.style('display','element');
+        n.removeClass('faded');
+      } else {
+        n.style('display','none');
+      }
+    });
+    _cy.edges().forEach(e => {
+      const src = e.source(), tgt = e.target();
+      e.style('display', (src.style('display')!=='none' && tgt.style('display')!=='none') ? 'element' : 'none');
+    });
   }
 }
 

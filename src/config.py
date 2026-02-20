@@ -48,5 +48,10 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = "INFO"
 
+    # Notifications (optional — Slack / Telegram webhooks)
+    slack_webhook_url: str = ""
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+
 
 settings = Settings()

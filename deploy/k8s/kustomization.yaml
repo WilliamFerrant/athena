@@ -1,0 +1,33 @@
+# Athena — Kubernetes Deployment
+#
+# Apply all manifests at once:
+#   kubectl apply -k deploy/k8s/
+#
+# Or individually in order:
+#   kubectl apply -f deploy/k8s/namespace.yaml
+#   kubectl apply -f deploy/k8s/configmap.yaml
+#   kubectl apply -f deploy/k8s/secret.yaml    # fill in real values first!
+#   kubectl apply -f deploy/k8s/pvc.yaml
+#   kubectl apply -f deploy/k8s/deployment.yaml
+#   kubectl apply -f deploy/k8s/service.yaml
+#   kubectl apply -f deploy/k8s/hpa.yaml
+#   kubectl apply -f deploy/k8s/ingress.yaml
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: athena
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+  - hpa.yaml
+  - ingress.yaml
+
+commonLabels:
+  app.kubernetes.io/managed-by: kustomize
+  app.kubernetes.io/version: "0.1.0"

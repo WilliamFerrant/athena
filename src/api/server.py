@@ -19,6 +19,7 @@ from src.api.health_routes import broadcast_result, health_router
 from src.api.routes import router
 from src.api.runner_routes import runner_router
 from src.api.task_routes import task_router
+from src.api.diag_routes import diag_router
 from src.config import settings
 from src.health.engine import HealthStore
 from src.health.scheduler import HealthScheduler
@@ -99,6 +100,23 @@ async def lifespan(app: FastAPI):
     task_store = TaskStore()
     app.state.task_store = task_store
 
+    # MCP living context interceptor
+    try:
+        from src.context import init_mcp
+        from src.memory.graph_context import get_shared_graph
+        mcp = init_mcp(
+            runner_client=runner_client,
+            runner_poller=None,  # wired after poller starts below
+            health_store=store,
+            agents=app.state.agents,
+            graph=get_shared_graph(),
+        )
+        app.state.mcp = mcp
+        logger.info("MCP living context interceptor initialised")
+    except Exception:
+        logger.warning("MCP interceptor init failed — running without living context")
+        app.state.mcp = None
+
     runner_poller = RunnerPoller(
         client=runner_client,
         interval=float(settings.runner_poll_interval),
@@ -114,6 +132,10 @@ async def lifespan(app: FastAPI):
         )
     except Exception:
         logger.exception("Runner poller failed to start")
+
+    # Wire poller into MCP interceptor now that it's running
+    if getattr(app.state, "mcp", None) is not None:
+        app.state.mcp._poller = runner_poller
 
     yield
 
@@ -143,6 +165,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router, prefix="/api")
     app.include_router(runner_router, prefix="/api")
     app.include_router(task_router, prefix="/api")
+    app.include_router(diag_router, prefix="/api")
 
     # Serve unified dashboard at root and /workshop (same SPA, mode toggled client-side)
     @app.get("/")
