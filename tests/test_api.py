@@ -14,7 +14,19 @@ from src.token_tracker.tracker import TokenTracker
 @pytest.fixture
 def client(mock_claude_cli):
     app = create_app()
-    app.state.tracker = TokenTracker()
+    tracker = TokenTracker()
+    app.state.tracker = tracker
+    # Create agent pool matching server lifespan
+    from src.agents.frontend import FrontendAgent
+    from src.agents.backend import BackendAgent
+    from src.agents.manager import ManagerAgent
+    from src.agents.tester import TesterAgent
+    app.state.agents = {
+        "manager": ManagerAgent(agent_id="manager", tracker=tracker),
+        "frontend": FrontendAgent(agent_id="frontend", tracker=tracker),
+        "backend": BackendAgent(agent_id="backend", tracker=tracker),
+        "tester": TesterAgent(agent_id="tester", tracker=tracker),
+    }
     return TestClient(app)
 
 

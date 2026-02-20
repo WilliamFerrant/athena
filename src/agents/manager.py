@@ -17,6 +17,29 @@ from src.config import settings
 logger = logging.getLogger(__name__)
 
 
+def _maybe_openai_backend():
+    """Return an OpenAIBackend instance if configured, else None."""
+    if settings.manager_backend == "claude":
+        return None
+    if settings.manager_backend == "auto" and not settings.openai_api_key:
+        return None
+    if not settings.openai_api_key:
+        return None
+    try:
+        from src.token_tracker.openai_backend import OpenAIBackend
+
+        return OpenAIBackend(
+            api_key=settings.openai_api_key,
+            model=settings.openai_model,
+        )
+    except ImportError:
+        logger.warning("openai package not installed — Manager will use Claude CLI")
+        return None
+    except Exception as exc:
+        logger.warning("Failed to init OpenAI backend: %s — falling back to Claude CLI", exc)
+        return None
+
+
 class ManagerAgent(BaseAgent):
     agent_type = "manager"
     default_model = settings.manager_model
@@ -24,7 +47,19 @@ class ManagerAgent(BaseAgent):
     def __init__(self, **kwargs):
         if "personality" not in kwargs:
             kwargs["personality"] = Personality.for_manager()
+        # If no explicit llm_backend, auto-configure OpenAI when key is present
+        if "llm_backend" not in kwargs:
+            backend = _maybe_openai_backend()
+            if backend:
+                kwargs["llm_backend"] = backend
         super().__init__(**kwargs)
+        if self._llm_backend:
+            # Override default_model to the OpenAI model
+            self.default_model = getattr(self._llm_backend, "model", self.default_model)
+            logger.info(
+                "Manager using ChatGPT backend (model=%s)",
+                self.default_model,
+            )
 
     def _role_description(self) -> str:
         return """You are a senior engineering manager coordinating a multi-agent development team.

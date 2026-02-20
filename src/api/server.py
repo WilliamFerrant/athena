@@ -11,6 +11,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from src.agents.backend import BackendAgent
+from src.agents.frontend import FrontendAgent
+from src.agents.manager import ManagerAgent
+from src.agents.tester import TesterAgent
 from src.api.health_routes import broadcast_result, health_router
 from src.api.routes import router
 from src.api.runner_routes import runner_router
@@ -18,6 +22,7 @@ from src.api.task_routes import task_router
 from src.config import settings
 from src.health.engine import HealthStore
 from src.health.scheduler import HealthScheduler
+from src.memory.mem0_client import AgentMemory
 from src.projects.registry import ProjectRegistry
 from src.runner_connector.client import RunnerClient
 from src.runner_connector.poller import RunnerPoller
@@ -33,7 +38,33 @@ STATIC_DIR = Path(__file__).parent.parent / "static"
 async def lifespan(app: FastAPI):
     """Initialize shared resources on startup."""
     # Token tracker
-    app.state.tracker = TokenTracker()
+    tracker = TokenTracker()
+    app.state.tracker = tracker
+
+    # Shared agent pool — persistent across requests so conversation history
+    # and memory context accumulate naturally within a server session.
+    def _make_memory(agent_id: str) -> AgentMemory | None:
+        try:
+            return AgentMemory(agent_id=agent_id)
+        except Exception:
+            logger.warning("mem0 unavailable for %s — running without memory", agent_id)
+            return None
+
+    app.state.agents = {
+        "manager": ManagerAgent(
+            agent_id="manager", tracker=tracker, memory=_make_memory("manager")
+        ),
+        "frontend": FrontendAgent(
+            agent_id="frontend", tracker=tracker, memory=_make_memory("frontend")
+        ),
+        "backend": BackendAgent(
+            agent_id="backend", tracker=tracker, memory=_make_memory("backend")
+        ),
+        "tester": TesterAgent(
+            agent_id="tester", tracker=tracker, memory=_make_memory("tester")
+        ),
+    }
+    logger.info("Agent pool initialised with memory=%s", "mem0" if app.state.agents["manager"].memory else "none")
 
     # Project registry
     registry = ProjectRegistry()

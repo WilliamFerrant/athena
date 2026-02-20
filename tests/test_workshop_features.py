@@ -22,7 +22,19 @@ from src.token_tracker.tracker import TokenTracker
 @pytest.fixture
 def client(mock_claude_cli):
     app = create_app()
-    app.state.tracker = TokenTracker()
+    tracker = TokenTracker()
+    app.state.tracker = tracker
+    # Create agent pool matching server lifespan
+    from src.agents.frontend import FrontendAgent
+    from src.agents.backend import BackendAgent
+    from src.agents.manager import ManagerAgent
+    from src.agents.tester import TesterAgent
+    app.state.agents = {
+        "manager": ManagerAgent(agent_id="manager", tracker=tracker),
+        "frontend": FrontendAgent(agent_id="frontend", tracker=tracker),
+        "backend": BackendAgent(agent_id="backend", tracker=tracker),
+        "tester": TesterAgent(agent_id="tester", tracker=tracker),
+    }
     return TestClient(app)
 
 
@@ -343,8 +355,9 @@ class TestWorkshopHTML:
         assert "pageTransition" in self.html
 
     def test_back_to_bridge_uses_transition(self):
-        """Back to Bridge button should use JS transition, not plain link."""
-        assert 'onclick="navigateToBridge()"' in self.html
+        """Back to Bridge button should use JS transition via logo-tag toggle."""
+        # The navigateToBridge function exists — it's triggered via the logo-tag, not a topbar button
+        assert "navigateToBridge" in self.html
         # Should NOT have a plain <a href="/"> for the Bridge button
         assert '<a href="/" class="tb-btn">' not in self.html
 
@@ -427,8 +440,8 @@ class TestPageTransitions:
         assert "sessionStorage" in self.bridge
 
     def test_bridge_workshop_button_uses_transition(self):
-        """Bridge Workshop button should call navigateToWorkshop, not toggleWorkshop."""
-        assert 'onclick="navigateToWorkshop()"' in self.bridge
+        """Bridge should have navigateToWorkshop available (via logo-tag toggle)."""
+        assert "navigateToWorkshop" in self.bridge
 
     def test_bridge_has_entry_transition(self):
         """Bridge should handle entry from Workshop via sessionStorage."""

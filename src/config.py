@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     manager_model: str = "sonnet"
     heavy_model: str = "opus"
 
+    # OpenAI / ChatGPT (used for Manager agent when configured)
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o"  # gpt-4o, gpt-4-turbo, gpt-4o-mini, etc.
+    manager_backend: str = "auto"  # "auto" | "openai" | "claude"
+    # auto = use OpenAI if key present, else Claude CLI
+
     # Daily call limit (not cost — just a rate guard)
     daily_call_limit: int = 200
 

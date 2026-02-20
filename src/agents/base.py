@@ -21,6 +21,10 @@ class BaseAgent:
     - Anthropic SDK calls (via TokenTracker)
     - Persistent memory (via mem0)
     - Sims personality + drive system
+
+    Optionally accepts an ``llm_backend`` (e.g. ``OpenAIBackend``) that
+    overrides the default Claude CLI tracker for LLM calls while keeping
+    the tracker around for budget / summary bookkeeping.
     """
 
     agent_type: str = "base"
@@ -33,6 +37,7 @@ class BaseAgent:
         memory: AgentMemory | None = None,
         personality: Personality | None = None,
         drive_system: DriveSystem | None = None,
+        llm_backend: Any | None = None,
     ) -> None:
         self.agent_id = agent_id
         self.tracker = tracker
@@ -40,6 +45,9 @@ class BaseAgent:
         self.personality = personality or Personality()
         self.drives = drive_system or DriveSystem()
         self._conversation: list[dict[str, Any]] = []
+        # If an alternate LLM backend is provided (e.g. OpenAIBackend),
+        # use it for LLM calls instead of the Claude CLI tracker.
+        self._llm_backend = llm_backend
 
     # -- system prompt ---------------------------------------------------------
 
@@ -76,6 +84,11 @@ class BaseAgent:
 
     # -- LLM calls -------------------------------------------------------------
 
+    @property
+    def llm_backend(self):
+        """The LLM backend used for chat calls (OpenAI, Claude CLI, etc.)."""
+        return self._llm_backend or self.tracker
+
     def chat(
         self,
         user_message: str,
@@ -90,7 +103,7 @@ class BaseAgent:
         # Tick the drive system (simulate work)
         self.drives.tick(minutes_worked=0.5)
 
-        response = self.tracker.create_message(
+        response = self.llm_backend.create_message(
             agent_id=self.agent_id,
             model=self.default_model,
             system=self.system_prompt(task_context),
@@ -128,7 +141,7 @@ class BaseAgent:
         self._conversation.append({"role": "user", "content": user_message})
         self.drives.tick(minutes_worked=0.5)
 
-        response = await self.tracker.acreate_message(
+        response = await self.llm_backend.acreate_message(
             agent_id=self.agent_id,
             model=self.default_model,
             system=self.system_prompt(task_context),
@@ -158,11 +171,13 @@ class BaseAgent:
         self._conversation = []
 
     def status(self) -> dict[str, Any]:
+        backend_name = type(self.llm_backend).__name__
         return {
             "agent_id": self.agent_id,
             "agent_type": self.agent_type,
+            "llm_backend": backend_name,
             "personality": self.personality.name,
             "drives": self.drives.state.to_dict(),
             "conversation_length": len(self._conversation),
-            "token_usage": self.tracker.agent_summary(self.agent_id),
+            "token_usage": self.llm_backend.agent_summary(self.agent_id),
         }

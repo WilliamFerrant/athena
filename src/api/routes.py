@@ -14,7 +14,6 @@ from pydantic import BaseModel
 from src.memory.mem0_client import AgentMemory
 from src.orchestrator.graph import run_task
 from src.token_tracker.tracker import TokenTracker
-from src.token_tracker.session_parser import report_to_dict
 
 logger = logging.getLogger(__name__)
 
@@ -91,23 +90,11 @@ def chat_with_agent(req: ChatRequest, request: Request) -> ChatResponse:
     if tracker.is_over_budget:
         raise HTTPException(status_code=429, detail="Daily call limit exhausted")
 
-    from src.agents.backend import BackendAgent
-    from src.agents.frontend import FrontendAgent
-    from src.agents.manager import ManagerAgent
-    from src.agents.tester import TesterAgent
-
-    agent_classes = {
-        "frontend": FrontendAgent,
-        "backend": BackendAgent,
-        "tester": TesterAgent,
-        "manager": ManagerAgent,
-    }
-
-    agent_cls = agent_classes.get(req.agent)
-    if not agent_cls:
+    agents = getattr(request.app.state, "agents", {})
+    agent = agents.get(req.agent)
+    if not agent:
         raise HTTPException(status_code=400, detail=f"Unknown agent: {req.agent}")
 
-    agent = agent_cls(agent_id=req.agent, tracker=tracker)
     response = agent.chat(req.message, task_context=req.task_context)
 
     return ChatResponse(
@@ -417,23 +404,10 @@ async def stream_chat(req: StreamChatRequest, request: Request):
     if tracker.is_over_budget:
         raise HTTPException(status_code=429, detail="Daily call limit exhausted")
 
-    from src.agents.backend import BackendAgent
-    from src.agents.frontend import FrontendAgent
-    from src.agents.manager import ManagerAgent
-    from src.agents.tester import TesterAgent
-
-    agent_classes = {
-        "frontend": FrontendAgent,
-        "backend": BackendAgent,
-        "tester": TesterAgent,
-        "manager": ManagerAgent,
-    }
-
-    agent_cls = agent_classes.get(req.agent)
-    if not agent_cls:
+    agents = getattr(request.app.state, "agents", {})
+    agent = agents.get(req.agent)
+    if not agent:
         raise HTTPException(status_code=400, detail=f"Unknown agent: {req.agent}")
-
-    agent = agent_cls(agent_id=req.agent, tracker=tracker)
 
     async def event_generator():
         # Send start event
@@ -441,15 +415,23 @@ async def stream_chat(req: StreamChatRequest, request: Request):
 
         full_text = ""
         try:
+            # Build system prompt with memory context
             system = agent.system_prompt(req.task_context)
-            messages = [{"role": "user", "content": req.message}]
+
+            # Append user message to persistent conversation history
+            agent._conversation.append({"role": "user", "content": req.message})
             agent.drives.tick(minutes_worked=0.5)
 
-            async for event in tracker.create_message_stream(
+            # Use the agent's own LLM backend for streaming (OpenAI for
+            # Manager, Claude CLI for specialists).  Falls back to the
+            # global tracker when the agent has no custom backend.
+            stream_backend = agent.llm_backend
+
+            async for event in stream_backend.create_message_stream(
                 agent_id=req.agent,
                 model=agent.default_model,
                 system=system,
-                messages=messages,
+                messages=agent._conversation,
             ):
                 if event["type"] == "chunk":
                     chunk = event["data"]
@@ -461,8 +443,18 @@ async def stream_chat(req: StreamChatRequest, request: Request):
                 elif event["type"] == "done":
                     full_text = event["data"]
 
+            # Store assistant response in conversation history
+            agent._conversation.append({"role": "assistant", "content": full_text})
+
+            # Store in memory if available
+            if agent.memory and full_text:
+                try:
+                    agent.memory.add_conversation(agent._conversation[-2:])
+                except Exception:
+                    logger.debug("Memory storage failed for %s", req.agent)
+
             # Send done event with full response
-            summary = tracker.agent_summary(req.agent)
+            summary = agent.llm_backend.agent_summary(req.agent)
             yield f"event: done\ndata: {json.dumps({'response': full_text, 'agent_id': req.agent, 'token_summary': summary})}\n\n"
 
         except Exception as e:
