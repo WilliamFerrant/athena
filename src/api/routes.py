@@ -310,6 +310,50 @@ def clear_agent_memories(agent_id: str) -> dict[str, str]:
         raise HTTPException(status_code=500, detail=f"Memory error: {e}")
 
 
+@router.get("/memory/graph")
+def get_memory_graph() -> dict[str, Any]:
+    """Return the in-process knowledge graph as a JSON-serialisable dict.
+
+    Useful for visualising memory connections in the dashboard.
+    """
+    try:
+        from src.memory.graph_context import get_shared_graph
+        graph = get_shared_graph()
+        return {"graph": graph.to_dict(), "stats": graph.stats()}
+    except ImportError:
+        raise HTTPException(status_code=503, detail="networkx not installed")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Graph error: {e}")
+
+
+# -- Usage chart data ----------------------------------------------------------
+
+
+@router.get("/usage/chart-data")
+def get_chart_data(request: Request) -> dict[str, Any]:
+    """Structured token usage data formatted for dashboard charts.
+
+    Returns the last 14 days of daily usage, model breakdown, totals,
+    actionable insights, and rate-limit status — all in chart-ready shape.
+    """
+    tracker: TokenTracker = request.app.state.tracker
+    data = tracker.get_real_usage_dict()
+
+    daily: list[dict[str, Any]] = data.get("daily_usage", [])
+    models: list[dict[str, Any]] = data.get("model_breakdown", [])
+
+    return {
+        "daily_labels": [d.get("date", "") for d in daily[-14:]],
+        "daily_input": [d.get("input_tokens", 0) for d in daily[-14:]],
+        "daily_output": [d.get("output_tokens", 0) for d in daily[-14:]],
+        "model_labels": [m.get("model", "unknown") for m in models],
+        "model_tokens": [m.get("total_tokens", 0) for m in models],
+        "totals": data.get("totals", {}),
+        "insights": data.get("insights", []),
+        "rate_limits": tracker.get_rate_limits(),
+    }
+
+
 # -- Streaming endpoints (SSE) ------------------------------------------------
 
 

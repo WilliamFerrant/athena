@@ -8,6 +8,7 @@ from typing import Any
 from src.agents.sims.drives import DriveSystem
 from src.agents.sims.personality import Personality
 from src.memory.mem0_client import AgentMemory
+from src.safety.injection_guard import assert_safe
 from src.token_tracker.tracker import TokenTracker
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,7 @@ class BaseAgent:
         max_tokens: int = 4096,
     ) -> str:
         """Send a message and get a text response."""
+        assert_safe(user_message)
         self._conversation.append({"role": "user", "content": user_message})
 
         # Tick the drive system (simulate work)
@@ -122,6 +124,7 @@ class BaseAgent:
         max_tokens: int = 4096,
     ) -> str:
         """Async version of chat."""
+        assert_safe(user_message)
         self._conversation.append({"role": "user", "content": user_message})
         self.drives.tick(minutes_worked=0.5)
 

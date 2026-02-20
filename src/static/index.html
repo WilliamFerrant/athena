@@ -442,7 +442,15 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
 .mem-clear-btn{background:none;border:1px solid var(--red);color:var(--red);padding:5px 12px;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;transition:all .2s}
 .mem-clear-btn:hover{background:var(--red);color:var(--bg)}
 .mem-stats{font-size:10px;color:var(--muted);padding:4px 0}
+.usage-charts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.usage-chart-box{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px}
+.usage-chart-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent);margin-bottom:8px}
+.usage-refresh-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.usage-refresh-btn{background:none;border:1px solid var(--border);color:var(--muted);padding:3px 10px;border-radius:4px;font-size:10px;cursor:pointer;transition:all .2s}
+.usage-refresh-btn:hover{border-color:var(--accent);color:var(--accent)}
+.usage-auto-tag{font-size:9px;color:var(--muted)}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 </head>
 <body class="bridge-mode">
 
@@ -2107,7 +2115,10 @@ function toggleUsage(){
   usageOpen=!usageOpen;
   const overlay=document.getElementById('usageOverlay');
   if(usageOpen){ overlay.classList.add('open'); loadUsageData(); }
-  else{ overlay.classList.remove('open'); }
+  else{
+    overlay.classList.remove('open');
+    if(_usageAutoRefreshTimer){ clearTimeout(_usageAutoRefreshTimer); _usageAutoRefreshTimer=null; }
+  }
 }
 
 // ─── INCIDENTS & HISTORY ─────────────────────────────────────────────────────
@@ -2181,19 +2192,30 @@ async function showIncidents(projectId){
   }
 }
 
+// Chart instances (destroyed before re-render to avoid canvas reuse errors)
+let _usageDailyChart=null, _usageModelChart=null;
+let _usageAutoRefreshTimer=null;
+
 async function loadUsageData(){
   const body=document.getElementById('usageBody');
   body.innerHTML='<div style="color:var(--muted);text-align:center;padding:20px">Loading usage data...</div>';
 
   try{
-    const [limitsR, modelsR, usageR] = await Promise.all([
+    const [chartR, limitsR] = await Promise.all([
+      fetch(`${API}/usage/chart-data`).then(r=>r.json()).catch(()=>null),
       fetch(`${API}/usage/limits`).then(r=>r.json()).catch(()=>null),
-      fetch(`${API}/usage/models`).then(r=>r.json()).catch(()=>null),
-      fetch(`${API}/usage`).then(r=>r.json()).catch(()=>null),
     ]);
 
     let html='';
 
+    // Refresh bar
+    const now=new Date().toLocaleTimeString();
+    html+=`<div class="usage-refresh-bar">
+      <span class="usage-auto-tag">Last refreshed: ${now}</span>
+      <button class="usage-refresh-btn" onclick="loadUsageData()">&#8635; Refresh</button>
+    </div>`;
+
+    // Rate limit cards
     if(limitsR){
       const session = limitsR.session_5h || {};
       const weekly = limitsR.weekly_7d || {};
@@ -2201,37 +2223,102 @@ async function loadUsageData(){
       html+=renderUsageLimitCard('Weekly (7d window)', weekly);
     }
 
-    if(modelsR && modelsR.model_breakdown && modelsR.model_breakdown.length){
-      html+='<div class="usage-card"><div class="usage-card-title">Model Breakdown</div><div class="usage-models">';
-      const models=modelsR.model_breakdown.slice(0,6);
-      for(const m of models){
-        html+=`<div class="usage-model-item">
-          <div class="model-name">${esc(m.model||'unknown')}</div>
-          <div class="model-tokens">${fmt(m.total_tokens||0)} tokens</div>
-          <div style="font-size:9px;color:var(--muted)">${m.request_count||0} requests</div>
-        </div>`;
-      }
-      html+='</div></div>';
-    }
-
-    if(usageR && usageR.totals){
-      const t=usageR.totals;
+    // Totals strip
+    if(chartR && chartR.totals){
+      const t=chartR.totals;
       html+='<div class="usage-card"><div class="usage-card-title">Totals</div>';
       html+='<div class="usage-stat"><span>Sessions</span><span class="val">'+fmt(t.total_sessions||0)+'</span></div>';
       html+='<div class="usage-stat"><span>Total Tokens</span><span class="val">'+fmt(t.total_tokens||0)+'</span></div>';
-      html+='<div class="usage-stat"><span>Input Tokens</span><span class="val">'+fmt(t.total_input_tokens||0)+'</span></div>';
-      html+='<div class="usage-stat"><span>Output Tokens</span><span class="val">'+fmt(t.total_output_tokens||0)+'</span></div>';
+      html+='<div class="usage-stat"><span>Input</span><span class="val">'+fmt(t.total_input_tokens||0)+'</span></div>';
+      html+='<div class="usage-stat"><span>Output</span><span class="val">'+fmt(t.total_output_tokens||0)+'</span></div>';
       html+='</div>';
     }
-    if(usageR && usageR.insights && usageR.insights.length){
-      html+='<div class="usage-card"><div class="usage-card-title">Insights</div>';
-      for(const ins of usageR.insights){
-        html+=`<div style="font-size:11px;color:var(--text);padding:4px 0;border-bottom:1px solid var(--border)">${esc(ins)}</div>`;
+
+    // Charts (canvases — data injected after innerHTML set)
+    const hasDaily = chartR && chartR.daily_labels && chartR.daily_labels.length;
+    const hasModels = chartR && chartR.model_labels && chartR.model_labels.length;
+    if(hasDaily || hasModels){
+      html+='<div class="usage-charts">';
+      if(hasDaily){
+        html+=`<div class="usage-chart-box">
+          <div class="usage-chart-label">Daily Tokens (14d)</div>
+          <canvas id="usageDailyCanvas" height="140"></canvas>
+        </div>`;
+      }
+      if(hasModels){
+        html+=`<div class="usage-chart-box">
+          <div class="usage-chart-label">By Model</div>
+          <canvas id="usageModelCanvas" height="140"></canvas>
+        </div>`;
+      }
+      html+='</div>';
+    }
+
+    // Insights
+    if(chartR && chartR.insights && chartR.insights.length){
+      const insights=chartR.insights;
+      html+='<div class="usage-card"><div class="usage-card-title">Insights ('+insights.length+')</div>';
+      for(const ins of insights){
+        const msg=typeof ins==='string'?ins:(ins.message||ins.description||JSON.stringify(ins));
+        html+=`<div style="font-size:11px;color:var(--text);padding:5px 0;border-bottom:1px solid var(--border)">&#128161; ${esc(msg)}</div>`;
       }
       html+='</div>';
     }
 
     body.innerHTML=html||'<div class="mem-empty">No usage data available</div>';
+
+    // Destroy previous chart instances before creating new ones
+    if(_usageDailyChart){ _usageDailyChart.destroy(); _usageDailyChart=null; }
+    if(_usageModelChart){ _usageModelChart.destroy(); _usageModelChart=null; }
+
+    // Render daily bar chart
+    if(hasDaily){
+      const ctx=document.getElementById('usageDailyCanvas');
+      if(ctx && typeof Chart!=='undefined'){
+        _usageDailyChart=new Chart(ctx,{
+          type:'bar',
+          data:{
+            labels:chartR.daily_labels,
+            datasets:[
+              {label:'Input',data:chartR.daily_input,backgroundColor:'rgba(124,166,196,0.6)',borderColor:'rgba(124,166,196,1)',borderWidth:1},
+              {label:'Output',data:chartR.daily_output,backgroundColor:'rgba(80,181,131,0.6)',borderColor:'rgba(80,181,131,1)',borderWidth:1},
+            ]
+          },
+          options:{
+            responsive:true,maintainAspectRatio:false,
+            plugins:{legend:{labels:{color:'#8a8878',font:{size:9}}}},
+            scales:{
+              x:{ticks:{color:'#8a8878',font:{size:8},maxRotation:45},grid:{color:'#3a3a3a'}},
+              y:{ticks:{color:'#8a8878',font:{size:9},callback:v=>v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e3?(v/1e3).toFixed(0)+'K':v},grid:{color:'#3a3a3a'}},
+            }
+          }
+        });
+      }
+    }
+
+    // Render model donut chart
+    if(hasModels){
+      const ctx=document.getElementById('usageModelCanvas');
+      if(ctx && typeof Chart!=='undefined'){
+        const palette=['#7ca6c4','#50b583','#eab308','#f97316','#8b7ec6','#d97aa0'];
+        _usageModelChart=new Chart(ctx,{
+          type:'doughnut',
+          data:{
+            labels:chartR.model_labels,
+            datasets:[{data:chartR.model_tokens,backgroundColor:palette.slice(0,chartR.model_labels.length),borderWidth:0}]
+          },
+          options:{
+            responsive:true,maintainAspectRatio:false,
+            plugins:{legend:{position:'bottom',labels:{color:'#8a8878',font:{size:9},padding:8,boxWidth:10}}}
+          }
+        });
+      }
+    }
+
+    // Auto-refresh every 30s
+    if(_usageAutoRefreshTimer) clearTimeout(_usageAutoRefreshTimer);
+    _usageAutoRefreshTimer=setTimeout(()=>{ if(usageOpen) loadUsageData(); },30000);
+
   }catch(e){
     body.innerHTML='<div style="color:var(--red);text-align:center;padding:20px">Failed to load usage data: '+esc(e.message)+'</div>';
   }

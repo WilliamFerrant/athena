@@ -5,17 +5,19 @@ Flow:
                             ^             |
                             |___ revise __|
 
-The manager decomposes tasks, specialist agents execute subtasks,
-the manager reviews outputs, and the cycle continues until all
-subtasks are approved.
+The manager decomposes tasks, specialist agents execute subtasks in
+**parallel** (ThreadPoolExecutor + asyncio), the manager reviews outputs,
+and the cycle continues until all subtasks are approved.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
 
 from src.agents.backend import BackendAgent
 from src.agents.frontend import FrontendAgent
@@ -26,6 +28,9 @@ from src.orchestrator.state import SubtaskResult, WorkflowState
 from src.token_tracker.tracker import TokenTracker
 
 logger = logging.getLogger(__name__)
+
+# Maximum workers for parallel subtask execution
+_MAX_PARALLEL_WORKERS = 4
 
 
 def _create_agents(tracker: TokenTracker, use_memory: bool = True) -> dict[str, Any]:
@@ -62,6 +67,107 @@ def _create_agents(tracker: TokenTracker, use_memory: bool = True) -> dict[str, 
             memory=_maybe_memory("tester"),
         ),
     }
+
+
+# -- Parallel execution helpers ------------------------------------------------
+
+
+def _execute_single(
+    subtask_id: str,
+    result: SubtaskResult,
+    agents: dict[str, Any],
+) -> tuple[str, SubtaskResult]:
+    """Execute one subtask synchronously — designed to run inside a thread."""
+    agent = agents.get(result.agent_type)
+    if not agent:
+        result.output = f"Error: no agent of type '{result.agent_type}'"
+        result.review_verdict = "redo"
+        return subtask_id, result
+
+    prompt = result.description
+    if result.review_feedback and result.attempts > 0:
+        prompt += f"\n\nPrevious feedback (revision requested):\n{result.review_feedback}"
+
+    logger.info("Executing subtask %s with %s agent", subtask_id, result.agent_type)
+    try:
+        output = agent.chat(prompt, task_context=result.description)
+        result.output = output
+        result.attempts += 1
+        agent.drives.record_success()
+    except Exception as e:
+        result.output = f"Error during execution: {e}"
+        result.review_verdict = "redo"
+        agent.drives.record_failure()
+        logger.error("Subtask %s failed: %s", subtask_id, e)
+
+    return subtask_id, result
+
+
+def _execute_parallel_sync(
+    ready_queue: list[str],
+    results: dict[str, SubtaskResult],
+    agents: dict[str, Any],
+) -> dict[str, SubtaskResult]:
+    """Run all ready subtasks in parallel using a ThreadPoolExecutor.
+
+    This is the sync variant called from the synchronous ``executing_node``
+    and from ``asyncio.run`` when no event loop is running.
+    """
+    if not ready_queue:
+        return results
+
+    n_workers = min(_MAX_PARALLEL_WORKERS, len(ready_queue))
+    updated = dict(results)
+
+    with ThreadPoolExecutor(max_workers=n_workers) as executor:
+        futures = {
+            executor.submit(_execute_single, sid, updated[sid], agents): sid
+            for sid in ready_queue
+            if sid in updated
+        }
+        for future in as_completed(futures):
+            try:
+                sid, result = future.result()
+                updated[sid] = result
+            except Exception as exc:
+                sid = futures[future]
+                logger.error("Parallel future for subtask %s raised: %s", sid, exc)
+                if sid in updated:
+                    updated[sid].output = f"Error during parallel execution: {exc}"
+                    updated[sid].review_verdict = "redo"
+
+    return updated
+
+
+async def _execute_parallel_async(
+    ready_queue: list[str],
+    results: dict[str, SubtaskResult],
+    agents: dict[str, Any],
+) -> dict[str, SubtaskResult]:
+    """Async wrapper: schedules each subtask as a thread via run_in_executor."""
+    if not ready_queue:
+        return results
+
+    loop = asyncio.get_event_loop()
+    n_workers = min(_MAX_PARALLEL_WORKERS, len(ready_queue))
+    updated = dict(results)
+
+    with ThreadPoolExecutor(max_workers=n_workers) as executor:
+        coros = [
+            loop.run_in_executor(executor, _execute_single, sid, updated[sid], agents)
+            for sid in ready_queue
+            if sid in updated
+        ]
+        completed = await asyncio.gather(*coros, return_exceptions=True)
+
+    for item in completed:
+        if isinstance(item, Exception):
+            logger.error("Async parallel execute error: %s", item)
+            continue
+        sid, result = item  # type: ignore[misc]
+        updated[sid] = result
+
+    return updated
 
 
 # -- Node functions ------------------------------------------------------------
@@ -106,44 +212,40 @@ def planning_node(state: dict, agents: dict[str, Any]) -> dict[str, Any]:
 
 
 def executing_node(state: dict, agents: dict[str, Any]) -> dict[str, Any]:
-    """Execute all ready subtasks by delegating to specialist agents."""
+    """Execute all ready subtasks in parallel via ThreadPoolExecutor."""
     results = dict(state["results"])
+    ready_queue: list[str] = state["ready_queue"]
 
-    for subtask_id in state["ready_queue"]:
-        result = results.get(subtask_id)
-        if not result:
-            continue
+    if not ready_queue:
+        return {"phase": "reviewing", "results": results, "ready_queue": []}
 
-        agent = agents.get(result.agent_type)
-        if not agent:
-            results[subtask_id] = SubtaskResult(
-                subtask_id=subtask_id,
-                agent_type=result.agent_type,
-                description=result.description,
-                output=f"Error: no agent of type '{result.agent_type}'",
-                review_verdict="redo",
-            )
-            continue
+    logger.info(
+        "Executing %d subtask(s) in parallel: %s",
+        len(ready_queue),
+        ", ".join(ready_queue),
+    )
 
-        logger.info("Executing subtask %s with %s agent", subtask_id, result.agent_type)
+    # Use sync parallel execution (works both in and outside an event loop)
+    results = _execute_parallel_sync(ready_queue, results, agents)
 
-        prompt = result.description
-        if result.review_feedback and result.attempts > 0:
-            prompt += f"\n\nPrevious feedback (revision requested):\n{result.review_feedback}"
+    return {"phase": "reviewing", "results": results, "ready_queue": []}
 
-        try:
-            output = agent.chat(prompt, task_context=result.description)
-            result.output = output
-            result.attempts += 1
-            agent.drives.record_success()
-        except Exception as e:
-            result.output = f"Error during execution: {e}"
-            result.review_verdict = "redo"
-            agent.drives.record_failure()
-            logger.error("Subtask %s failed: %s", subtask_id, e)
 
-        results[subtask_id] = result
+async def aexecuting_node(state: dict, agents: dict[str, Any]) -> dict[str, Any]:
+    """Async version of executing_node — for use with app.ainvoke()."""
+    results = dict(state["results"])
+    ready_queue: list[str] = state["ready_queue"]
 
+    if not ready_queue:
+        return {"phase": "reviewing", "results": results, "ready_queue": []}
+
+    logger.info(
+        "Async-executing %d subtask(s) in parallel: %s",
+        len(ready_queue),
+        ", ".join(ready_queue),
+    )
+
+    results = await _execute_parallel_async(ready_queue, results, agents)
     return {"phase": "reviewing", "results": results, "ready_queue": []}
 
 
@@ -262,12 +364,8 @@ def build_graph(
     return graph
 
 
-def run_task(task: str, tracker: TokenTracker | None = None, use_memory: bool = True) -> dict:
-    """Convenience function: build graph and run a task through it."""
-    graph = build_graph(tracker=tracker, use_memory=use_memory)
-    app = graph.compile()
-
-    initial_state = {
+def _initial_state(task: str) -> dict[str, Any]:
+    return {
         "task": task,
         "messages": [],
         "phase": "intake",
@@ -280,5 +378,20 @@ def run_task(task: str, tracker: TokenTracker | None = None, use_memory: bool = 
         "max_revisions": 2,
     }
 
-    final_state = app.invoke(initial_state)
-    return final_state
+
+def run_task(task: str, tracker: TokenTracker | None = None, use_memory: bool = True) -> dict:
+    """Convenience function: build graph and run a task through it (sync)."""
+    graph = build_graph(tracker=tracker, use_memory=use_memory)
+    app = graph.compile()
+    return app.invoke(_initial_state(task))
+
+
+async def arun_task(
+    task: str,
+    tracker: TokenTracker | None = None,
+    use_memory: bool = True,
+) -> dict:
+    """Async convenience function — uses ainvoke for native async execution."""
+    graph = build_graph(tracker=tracker, use_memory=use_memory)
+    app = graph.compile()
+    return await app.ainvoke(_initial_state(task))

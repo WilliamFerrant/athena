@@ -3,6 +3,10 @@
 Agents have needs (energy, focus, morale, knowledge) that decay over time
 and affect performance. The orchestrator can observe drive states and make
 scheduling decisions (e.g. "this agent is low on energy, rotate it out").
+
+Also provides ``DriveRLEnv`` — a gymnasium environment that models drive
+recovery as an RL problem — and ``DriveSystem.optimize_via_rl()`` for
+running episodes to discover high-effectiveness sequences.
 """
 
 from __future__ import annotations
@@ -10,6 +14,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any
 
 
 class DriveType(str, Enum):
@@ -165,6 +170,43 @@ class DriveSystem:
         """Full reset to starting values."""
         self.state = DriveState()
 
+    def optimize_via_rl(self, n_episodes: int = 5) -> dict[str, Any]:
+        """Run RL episodes to discover high-effectiveness drive sequences.
+
+        Uses ``DriveRLEnv`` if gymnasium is installed; returns an error dict
+        otherwise.  The episodes use a random policy as a starter — swap in
+        a stable-baselines3 PPO agent for a trained policy.
+
+        Returns a summary dict with the best episode reward found.
+        """
+        if not _GYMNASIUM_AVAILABLE or DriveRLEnv is None:
+            return {"error": "gymnasium not installed — run: pip install gymnasium"}
+
+        env = DriveRLEnv()
+        best_reward = 0.0
+        best_sequence: list[str] = []
+
+        for _ in range(n_episodes):
+            obs, _ = env.reset()
+            ep_reward = 0.0
+            sequence: list[str] = []
+            done = False
+            while not done:
+                action = env.action_space.sample()
+                obs, reward, terminated, truncated, _ = env.step(int(action))
+                ep_reward += float(reward)
+                sequence.append(DriveRLEnv.ACTION_EVENTS[int(action)])
+                done = terminated or truncated
+            if ep_reward > best_reward:
+                best_reward = ep_reward
+                best_sequence = sequence[:]
+
+        return {
+            "best_episode_reward": round(best_reward, 3),
+            "best_sequence": best_sequence,
+            "episodes": n_episodes,
+        }
+
     def to_prompt_fragment(self) -> str:
         """Describe current state for injection into system prompts."""
         state = self.state
@@ -183,3 +225,84 @@ class DriveSystem:
         if state.is_demoralized():
             lines.append("  ⚠ Morale is low. Consider asking for help or simpler tasks.")
         return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# gymnasium RL environment (optional — guarded by try/import)
+# ---------------------------------------------------------------------------
+
+_GYMNASIUM_AVAILABLE = False
+DriveRLEnv = None  # type: ignore[assignment]
+
+try:
+    import gymnasium as gym
+    import numpy as np
+    from gymnasium import spaces
+
+    class DriveRLEnv(gym.Env):  # type: ignore[no-redef]
+        """gymnasium Env modelling drive recovery as an RL problem.
+
+        Observation space: [energy, focus, morale, knowledge] in [0, 100].
+        Action space:      Discrete(4) — one of the recovery events below.
+        Reward:            overall_effectiveness() at each step (0–1).
+        Episode length:    20 steps (configurable via ``max_steps``).
+
+        Extend with stable-baselines3 PPO for a trained policy::
+
+            from stable_baselines3 import PPO
+            model = PPO("MlpPolicy", DriveRLEnv(), verbose=1)
+            model.learn(total_timesteps=10_000)
+        """
+
+        metadata: dict[str, Any] = {"render_modes": []}
+
+        # Maps action index → recovery event name
+        ACTION_EVENTS: list[str] = ["rest", "task_success", "learning", "context_switch"]
+
+        def __init__(self, max_steps: int = 20) -> None:
+            super().__init__()
+            self.max_steps = max_steps
+            self.observation_space = spaces.Box(
+                low=0.0, high=100.0, shape=(4,), dtype=np.float32
+            )
+            self.action_space = spaces.Discrete(len(self.ACTION_EVENTS))
+            self._drives = DriveSystem()
+            self._steps = 0
+
+        def reset(
+            self,
+            *,
+            seed: int | None = None,
+            options: dict[str, Any] | None = None,
+        ) -> tuple[Any, dict[str, Any]]:
+            super().reset(seed=seed)
+            self._drives.reset()
+            self._steps = 0
+            return self._obs(), {}
+
+        def step(self, action: int) -> tuple[Any, float, bool, bool, dict[str, Any]]:
+            event = self.ACTION_EVENTS[int(action)]
+            self._drives.apply_event(event)
+            self._drives.tick(minutes_worked=0.5)
+            self._steps += 1
+            obs = self._obs()
+            reward = float(self._drives.state.overall_effectiveness())
+            terminated = self._steps >= self.max_steps
+            return obs, reward, terminated, False, {}
+
+        def _obs(self) -> Any:
+            s = self._drives.state
+            return np.array(
+                [
+                    s.levels[DriveType.ENERGY],
+                    s.levels[DriveType.FOCUS],
+                    s.levels[DriveType.MORALE],
+                    s.levels[DriveType.KNOWLEDGE],
+                ],
+                dtype=np.float32,
+            )
+
+    _GYMNASIUM_AVAILABLE = True
+
+except ImportError:
+    pass  # gymnasium / numpy optional — DriveRLEnv remains None

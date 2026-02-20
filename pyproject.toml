@@ -18,6 +18,9 @@ dependencies = [
     "httpx>=0.28.0",
     "rich>=13.9.0",
     "pyyaml>=6.0",
+    "networkx>=3.3",
+    "gymnasium>=1.0.0",
+    "numpy>=1.26.0",
 ]
 
 [project.optional-dependencies]
@@ -27,6 +30,10 @@ dev = [
     "pytest-cov>=6.0.0",
     "ruff>=0.8.0",
     "mypy>=1.13.0",
+]
+ml = [
+    "transformers>=4.40.0",
+    "torch>=2.2.0",
 ]
 
 [project.scripts]
