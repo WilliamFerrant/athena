@@ -364,9 +364,13 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
 /* ═══ USAGE OVERLAY ══════════════════════════════════════════════════════ */
 .usage-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:900;display:none;align-items:center;justify-content:center;padding:40px 20px}
 .usage-overlay.open{display:flex}
-.usage-container{background:var(--bg);border:1px solid var(--border);border-radius:10px;width:100%;max-width:700px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden}
-.usage-header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--border)}
+.usage-container{background:var(--bg);border:1px solid var(--border);border-radius:10px;width:100%;max-width:960px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden}
+.usage-header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border)}
 .usage-title{font-size:16px;font-weight:800;color:var(--text-bright);letter-spacing:1px}
+.usage-tabs{display:flex;gap:2px;padding:0 20px;border-bottom:1px solid var(--border);background:var(--surface)}
+.usage-tab{padding:9px 18px;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;text-transform:uppercase;letter-spacing:.5px}
+.usage-tab:hover{color:var(--text)}
+.usage-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
 .usage-body{flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:16px}
 .usage-card{background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:14px}
 .usage-card-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent);margin-bottom:8px}
@@ -381,6 +385,50 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
 .usage-model-item{background:var(--surface2);border-radius:5px;padding:8px 10px;font-size:11px}
 .usage-model-item .model-name{color:var(--text-bright);font-weight:600;font-size:10px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .usage-model-item .model-tokens{color:var(--accent);font-family:var(--font-mono);font-weight:600}
+/* Totals grid */
+.usage-totals-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.usage-total-card{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px;text-align:center}
+.usage-total-card .utc-value{font-size:20px;font-weight:800;color:var(--text-bright);font-family:var(--font-mono);line-height:1.2}
+.usage-total-card .utc-label{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-top:4px}
+.usage-total-card .utc-sub{font-size:10px;color:var(--accent);font-family:var(--font-mono);margin-top:2px}
+/* Model table */
+.usage-model-table{width:100%;border-collapse:collapse;font-size:11px}
+.usage-model-table th{text-align:left;padding:6px 8px;font-size:9px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border)}
+.usage-model-table th.right,.usage-model-table td.right{text-align:right}
+.usage-model-table td{padding:6px 8px;border-bottom:1px solid var(--border);color:var(--text)}
+.usage-model-table tr:last-child td{border-bottom:none}
+.usage-model-table .model-bar-cell{width:120px}
+.usage-model-bar{height:6px;border-radius:3px;background:var(--accent);transition:width .4s}
+/* Sessions table */
+.usage-session-table{width:100%;border-collapse:collapse;font-size:11px}
+.usage-session-table th{text-align:left;padding:6px 8px;font-size:9px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.8px;border-bottom:1px solid var(--border);white-space:nowrap}
+.usage-session-table th.right,.usage-session-table td.right{text-align:right}
+.usage-session-table td{padding:7px 8px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:top}
+.usage-session-table tr:hover{background:var(--surface2)}
+.usage-session-table .sess-prompt{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-weight:500}
+.usage-session-table .sess-model{font-family:var(--font-mono);font-size:10px;color:var(--cyan);white-space:nowrap}
+.usage-session-table .sess-tokens{font-family:var(--font-mono);font-weight:600;color:var(--text-bright);white-space:nowrap}
+.usage-session-table .sess-date{font-size:10px;color:var(--muted);white-space:nowrap}
+.usage-session-table .sess-queries{font-family:var(--font-mono);color:var(--purple);font-size:10px}
+/* Top prompts */
+.usage-prompt-row{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px 12px;display:flex;gap:12px;align-items:flex-start}
+.usage-prompt-rank{font-size:11px;font-weight:800;color:var(--accent);min-width:24px;text-align:center;padding-top:1px}
+.usage-prompt-body{flex:1;min-width:0}
+.usage-prompt-text{font-size:12px;color:var(--text);line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.usage-prompt-meta{display:flex;gap:12px;margin-top:4px;font-size:10px;color:var(--muted)}
+.usage-prompt-meta .pm-tokens{font-family:var(--font-mono);font-weight:600;color:var(--yellow)}
+.usage-prompt-meta .pm-model{font-family:var(--font-mono);color:var(--cyan)}
+.usage-prompt-meta .pm-date{color:var(--muted)}
+/* Insight cards revamp */
+.usage-insight{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px 14px}
+.usage-insight.warning{border-left:3px solid var(--yellow)}
+.usage-insight.info{border-left:3px solid var(--blue)}
+.usage-insight.neutral{border-left:3px solid var(--muted)}
+.usage-insight-title{font-size:12px;font-weight:700;color:var(--text-bright);margin-bottom:4px}
+.usage-insight-desc{font-size:11px;color:var(--text);line-height:1.5}
+.usage-insight-action{font-size:10px;color:var(--accent);margin-top:6px;font-style:italic}
+/* Rate limit cards side-by-side */
+.usage-limits-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 
 /* ═══ ORCHESTRATOR OVERLAY ════════════════════════════════════════════════ */
 .orch-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:900;display:none;align-items:center;justify-content:center;padding:40px 20px}
@@ -443,7 +491,7 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
 .mem-clear-btn:hover{background:var(--red);color:var(--bg)}
 .mem-stats{font-size:10px;color:var(--muted);padding:4px 0}
 .usage-charts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:4px}
-.usage-chart-box{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px;height:200px;display:flex;flex-direction:column}
+.usage-chart-box{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px;height:220px;display:flex;flex-direction:column}
 .usage-chart-box canvas{flex:1;min-height:0}
 .usage-chart-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent);margin-bottom:8px;flex-shrink:0}
 .usage-refresh-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
@@ -532,8 +580,6 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
     <button class="tb-btn" onclick="toggleDrives()">&#9889; Drives</button>
     <button class="tb-btn" onclick="toggleGraph()">&#128279; Graph</button>
     <button class="tb-btn" onclick="toggleMemory()">&#128065; Memory</button>
-    <button class="tb-btn bridge-only" onclick="navigateToWorkshop()">&#128736; Workshop</button>
-    <button class="tb-btn workshop-only" onclick="navigateToBridge()">&#127758; Bridge</button>
     <button class="tb-btn" onclick="refreshAll()">&#8635; Refresh</button>
     <span class="clock" id="clock"></span>
     <span class="build-sha" id="buildSha" title="Build SHA">—</span>
@@ -662,6 +708,12 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
     <div class="usage-header">
       <span class="usage-title">&#128200; Usage &amp; Budget</span>
       <button class="board-close" onclick="toggleUsage()">&times;</button>
+    </div>
+    <div class="usage-tabs" id="usageTabs">
+      <div class="usage-tab active" data-tab="overview" onclick="switchUsageTab('overview')">Overview</div>
+      <div class="usage-tab" data-tab="sessions" onclick="switchUsageTab('sessions')">Sessions</div>
+      <div class="usage-tab" data-tab="prompts" onclick="switchUsageTab('prompts')">Top Prompts</div>
+      <div class="usage-tab" data-tab="insights" onclick="switchUsageTab('insights')">Insights</div>
     </div>
     <div class="usage-body" id="usageBody">
       <div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Loading...</div>
@@ -1033,8 +1085,8 @@ async function pollUsageForAthena() {
     const r = await fetch(`${API}/usage/limits`).then(r => r.json()).catch(() => null);
     if (!r || !athenaScene) return;
     const pct = Math.max(
-      (r.session_5h?.percent_used || 0),
-      (r.weekly_7d?.percent_used  || 0)
+      (r.session?.percent_used || 0),
+      (r.weekly?.percent_used  || 0)
     );
     athenaScene.setUsageCrit(pct >= 90);
   } catch(e) {}
@@ -2236,14 +2288,31 @@ async function confirmCommitAndPR(){
 }
 
 // ═══ USAGE / BUDGET ══════════════════════════════════════════════════════
+let _usageDailyChart=null, _usageModelChart=null;
+let _usageAutoRefreshTimer=null;
+let _usageCachedData=null; // {chartR, limitsR, fullR}
+let _usageCurrentTab='overview';
+
 function toggleUsage(){
   usageOpen=!usageOpen;
   const overlay=document.getElementById('usageOverlay');
-  if(usageOpen){ overlay.classList.add('open'); loadUsageData(); }
+  if(usageOpen){ overlay.classList.add('open'); _usageCurrentTab='overview'; syncUsageTabs(); loadUsageData(); }
   else{
     overlay.classList.remove('open');
     if(_usageAutoRefreshTimer){ clearTimeout(_usageAutoRefreshTimer); _usageAutoRefreshTimer=null; }
   }
+}
+
+function switchUsageTab(tab){
+  _usageCurrentTab=tab;
+  syncUsageTabs();
+  if(_usageCachedData) renderUsageTab();
+}
+
+function syncUsageTabs(){
+  document.querySelectorAll('.usage-tab').forEach(t=>{
+    t.classList.toggle('active', t.dataset.tab===_usageCurrentTab);
+  });
 }
 
 // ─── INCIDENTS & HISTORY ─────────────────────────────────────────────────────
@@ -2266,7 +2335,6 @@ async function showIncidents(projectId){
     const projName=proj?.name||projectId;
     html+=`<div class="usage-card-title" style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:8px">${esc(projName)}</div>`;
 
-    // Check history section (uptime bars per check)
     if(proj?.checks?.length){
       html+='<div class="usage-card"><div class="usage-card-title">Check History (24h uptime)</div>';
       for(const chk of proj.checks){
@@ -2281,7 +2349,6 @@ async function showIncidents(projectId){
       html+='</div>';
     }
 
-    // Open incidents
     const open=(incR?.open||[]);
     const all=(incR?.incidents||[]);
     if(open.length){
@@ -2295,7 +2362,6 @@ async function showIncidents(projectId){
       html+='</div>';
     }
 
-    // Recent resolved
     const resolved=all.filter(i=>i.resolved_at).slice(0,8);
     if(resolved.length){
       html+='<div class="usage-card"><div class="usage-card-title">Recent Resolved</div>';
@@ -2317,122 +2383,20 @@ async function showIncidents(projectId){
   }
 }
 
-// Chart instances (destroyed before re-render to avoid canvas reuse errors)
-let _usageDailyChart=null, _usageModelChart=null;
-let _usageAutoRefreshTimer=null;
-
+// ─── USAGE DATA LOADING ─────────────────────────────────────────────────────
 async function loadUsageData(){
   const body=document.getElementById('usageBody');
   body.innerHTML='<div style="color:var(--muted);text-align:center;padding:20px">Loading usage data...</div>';
 
   try{
-    const [chartR, limitsR] = await Promise.all([
+    const [chartR, limitsR, fullR] = await Promise.all([
       fetch(`${API}/usage/chart-data`).then(r=>r.json()).catch(()=>null),
       fetch(`${API}/usage/limits`).then(r=>r.json()).catch(()=>null),
+      fetch(`${API}/usage`).then(r=>r.json()).catch(()=>null),
     ]);
 
-    let html='';
-
-    // Refresh bar
-    const now=new Date().toLocaleTimeString();
-    html+=`<div class="usage-refresh-bar">
-      <span class="usage-auto-tag">Last refreshed: ${now}</span>
-      <button class="usage-refresh-btn" onclick="loadUsageData()">&#8635; Refresh</button>
-    </div>`;
-
-    // Rate limit cards
-    if(limitsR){
-      const session = limitsR.session_5h || {};
-      const weekly = limitsR.weekly_7d || {};
-      html+=renderUsageLimitCard('Session (5h window)', session);
-      html+=renderUsageLimitCard('Weekly (7d window)', weekly);
-    }
-
-    // Totals strip
-    if(chartR && chartR.totals){
-      const t=chartR.totals;
-      html+='<div class="usage-card"><div class="usage-card-title">Totals</div>';
-      html+='<div class="usage-stat"><span>Sessions</span><span class="val">'+fmt(t.total_sessions||0)+'</span></div>';
-      html+='<div class="usage-stat"><span>Total Tokens</span><span class="val">'+fmt(t.total_tokens||0)+'</span></div>';
-      html+='<div class="usage-stat"><span>Input</span><span class="val">'+fmt(t.total_input_tokens||0)+'</span></div>';
-      html+='<div class="usage-stat"><span>Output</span><span class="val">'+fmt(t.total_output_tokens||0)+'</span></div>';
-      html+='</div>';
-    }
-
-    // Charts — always render both boxes side by side
-    const hasDaily = chartR && chartR.daily_labels && chartR.daily_labels.length;
-    const hasModels = chartR && chartR.model_labels && chartR.model_labels.length;
-    html+='<div class="usage-charts">';
-    html+=`<div class="usage-chart-box">
-      <div class="usage-chart-label">Daily Tokens (14d)</div>
-      ${hasDaily ? '<canvas id="usageDailyCanvas"></canvas>' : '<div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px">No session data yet</div>'}
-    </div>`;
-    html+=`<div class="usage-chart-box">
-      <div class="usage-chart-label">By Model</div>
-      ${hasModels ? '<canvas id="usageModelCanvas"></canvas>' : '<div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px">No model data yet</div>'}
-    </div>`;
-    html+='</div>';
-
-    // Insights
-    if(chartR && chartR.insights && chartR.insights.length){
-      const insights=chartR.insights;
-      html+='<div class="usage-card"><div class="usage-card-title">Insights ('+insights.length+')</div>';
-      for(const ins of insights){
-        const msg=typeof ins==='string'?ins:(ins.message||ins.description||JSON.stringify(ins));
-        html+=`<div style="font-size:11px;color:var(--text);padding:5px 0;border-bottom:1px solid var(--border)">&#128161; ${esc(msg)}</div>`;
-      }
-      html+='</div>';
-    }
-
-    body.innerHTML=html||'<div class="mem-empty">No usage data available</div>';
-
-    // Destroy previous chart instances before creating new ones
-    if(_usageDailyChart){ _usageDailyChart.destroy(); _usageDailyChart=null; }
-    if(_usageModelChart){ _usageModelChart.destroy(); _usageModelChart=null; }
-
-    // Render daily bar chart
-    if(hasDaily){
-      const ctx=document.getElementById('usageDailyCanvas');
-      if(ctx && typeof Chart!=='undefined'){
-        _usageDailyChart=new Chart(ctx,{
-          type:'bar',
-          data:{
-            labels:chartR.daily_labels,
-            datasets:[
-              {label:'Input',data:chartR.daily_input,backgroundColor:'rgba(124,166,196,0.6)',borderColor:'rgba(124,166,196,1)',borderWidth:1},
-              {label:'Output',data:chartR.daily_output,backgroundColor:'rgba(80,181,131,0.6)',borderColor:'rgba(80,181,131,1)',borderWidth:1},
-            ]
-          },
-          options:{
-            responsive:true,maintainAspectRatio:false,
-            plugins:{legend:{labels:{color:'#8a8878',font:{size:9}}}},
-            scales:{
-              x:{ticks:{color:'#8a8878',font:{size:8},maxRotation:45},grid:{color:'#3a3a3a'}},
-              y:{ticks:{color:'#8a8878',font:{size:9},callback:v=>v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e3?(v/1e3).toFixed(0)+'K':v},grid:{color:'#3a3a3a'}},
-            }
-          }
-        });
-      }
-    }
-
-    // Render model donut chart
-    if(hasModels){
-      const ctx=document.getElementById('usageModelCanvas');
-      if(ctx && typeof Chart!=='undefined'){
-        const palette=['#7ca6c4','#50b583','#eab308','#f97316','#8b7ec6','#d97aa0'];
-        _usageModelChart=new Chart(ctx,{
-          type:'doughnut',
-          data:{
-            labels:chartR.model_labels,
-            datasets:[{data:chartR.model_tokens,backgroundColor:palette.slice(0,chartR.model_labels.length),borderWidth:0}]
-          },
-          options:{
-            responsive:true,maintainAspectRatio:false,
-            plugins:{legend:{position:'bottom',labels:{color:'#8a8878',font:{size:9},padding:8,boxWidth:10}}}
-          }
-        });
-      }
-    }
+    _usageCachedData={chartR, limitsR, fullR, fetchedAt: new Date()};
+    renderUsageTab();
 
     // Auto-refresh every 30s
     if(_usageAutoRefreshTimer) clearTimeout(_usageAutoRefreshTimer);
@@ -2443,19 +2407,260 @@ async function loadUsageData(){
   }
 }
 
+function renderUsageTab(){
+  const body=document.getElementById('usageBody');
+  const {chartR, limitsR, fullR, fetchedAt}=_usageCachedData;
+  const now=fetchedAt?fetchedAt.toLocaleTimeString():new Date().toLocaleTimeString();
+
+  // Destroy previous chart instances
+  if(_usageDailyChart){ _usageDailyChart.destroy(); _usageDailyChart=null; }
+  if(_usageModelChart){ _usageModelChart.destroy(); _usageModelChart=null; }
+
+  let html=`<div class="usage-refresh-bar">
+    <span class="usage-auto-tag">Last refreshed: ${now} &middot; auto-refresh 30s</span>
+    <button class="usage-refresh-btn" onclick="loadUsageData()">&#8635; Refresh</button>
+  </div>`;
+
+  if(_usageCurrentTab==='overview') html+=renderUsageOverview(chartR, limitsR, fullR);
+  else if(_usageCurrentTab==='sessions') html+=renderUsageSessions(fullR);
+  else if(_usageCurrentTab==='prompts') html+=renderUsageTopPrompts(fullR);
+  else if(_usageCurrentTab==='insights') html+=renderUsageInsights(chartR, fullR);
+
+  body.innerHTML=html||'<div class="mem-empty">No usage data available</div>';
+
+  // Render charts only on overview tab
+  if(_usageCurrentTab==='overview') renderUsageCharts(chartR);
+}
+
+// ─── OVERVIEW TAB ────────────────────────────────────────────────────────────
+function renderUsageOverview(chartR, limitsR, fullR){
+  let html='';
+
+  // Rate limit cards side by side
+  if(limitsR){
+    const session = limitsR.session || {};
+    const weekly = limitsR.weekly || {};
+    html+='<div class="usage-limits-row">';
+    html+=renderUsageLimitCard('Session (5h window)', session);
+    html+=renderUsageLimitCard('Weekly (7d window)', weekly);
+    html+='</div>';
+  }
+
+  // Totals grid
+  const t=(chartR&&chartR.totals)||{};
+  const dateRange=t.date_range;
+  html+='<div class="usage-totals-grid">';
+  html+=`<div class="usage-total-card">
+    <div class="utc-value">${fmt(t.total_tokens||0)}</div>
+    <div class="utc-label">Total Tokens</div>
+    ${dateRange?`<div class="utc-sub">${esc(dateRange.from||'')} → ${esc(dateRange.to||'')}</div>`:''}
+  </div>`;
+  html+=`<div class="usage-total-card">
+    <div class="utc-value">${fmt(t.total_input_tokens||0)}</div>
+    <div class="utc-label">Input Tokens</div>
+    <div class="utc-sub">${t.total_tokens?(((t.total_input_tokens||0)/t.total_tokens)*100).toFixed(1):0}% of total</div>
+  </div>`;
+  html+=`<div class="usage-total-card">
+    <div class="utc-value">${fmt(t.total_output_tokens||0)}</div>
+    <div class="utc-label">Output Tokens</div>
+    <div class="utc-sub">${t.total_tokens?(((t.total_output_tokens||0)/t.total_tokens)*100).toFixed(1):0}% of total</div>
+  </div>`;
+  html+='</div>';
+
+  // Second row of totals
+  html+='<div class="usage-totals-grid">';
+  html+=`<div class="usage-total-card">
+    <div class="utc-value">${fmt(t.total_sessions||0)}</div>
+    <div class="utc-label">Sessions</div>
+  </div>`;
+  html+=`<div class="usage-total-card">
+    <div class="utc-value">${fmt(t.total_queries||0)}</div>
+    <div class="utc-label">Total Queries</div>
+  </div>`;
+  html+=`<div class="usage-total-card">
+    <div class="utc-value">${fmt(t.avg_tokens_per_query||0)}</div>
+    <div class="utc-label">Avg / Query</div>
+  </div>`;
+  html+='</div>';
+
+  // Charts
+  const hasDaily = chartR && chartR.daily_labels && chartR.daily_labels.length;
+  const hasModels = chartR && chartR.model_labels && chartR.model_labels.length;
+  html+='<div class="usage-charts">';
+  html+=`<div class="usage-chart-box">
+    <div class="usage-chart-label">Daily Tokens (14d)</div>
+    ${hasDaily ? '<canvas id="usageDailyCanvas"></canvas>' : '<div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px">No session data yet</div>'}
+  </div>`;
+  html+=`<div class="usage-chart-box">
+    <div class="usage-chart-label">By Model</div>
+    ${hasModels ? '<canvas id="usageModelCanvas"></canvas>' : '<div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px">No model data yet</div>'}
+  </div>`;
+  html+='</div>';
+
+  // Model breakdown table
+  const models=(fullR&&fullR.model_breakdown)||[];
+  if(models.length){
+    const maxTokens=Math.max(...models.map(m=>m.total_tokens||0),1);
+    html+='<div class="usage-card"><div class="usage-card-title">Model Breakdown</div>';
+    html+='<table class="usage-model-table"><thead><tr><th>Model</th><th class="right">Input</th><th class="right">Output</th><th class="right">Total</th><th class="right">Queries</th><th class="model-bar-cell"></th></tr></thead><tbody>';
+    for(const m of models.sort((a,b)=>(b.total_tokens||0)-(a.total_tokens||0))){
+      const pct=Math.round(((m.total_tokens||0)/maxTokens)*100);
+      html+=`<tr>
+        <td style="font-family:var(--font-mono);font-size:10px;color:var(--cyan)">${esc(m.model||'unknown')}</td>
+        <td class="right" style="font-family:var(--font-mono)">${fmt(m.input_tokens||0)}</td>
+        <td class="right" style="font-family:var(--font-mono)">${fmt(m.output_tokens||0)}</td>
+        <td class="right" style="font-family:var(--font-mono);font-weight:600;color:var(--text-bright)">${fmt(m.total_tokens||0)}</td>
+        <td class="right" style="font-family:var(--font-mono);color:var(--purple)">${fmt(m.query_count||0)}</td>
+        <td class="model-bar-cell"><div class="usage-model-bar" style="width:${pct}%"></div></td>
+      </tr>`;
+    }
+    html+='</tbody></table></div>';
+  }
+
+  return html;
+}
+
+// ─── SESSIONS TAB ────────────────────────────────────────────────────────────
+function renderUsageSessions(fullR){
+  const sessions=(fullR&&fullR.sessions)||[];
+  if(!sessions.length) return '<div class="mem-empty">No sessions found</div>';
+
+  let html=`<div style="font-size:10px;color:var(--muted);margin-bottom:4px">${sessions.length} sessions, sorted by token usage</div>`;
+  html+='<div class="usage-card" style="padding:0;overflow-x:auto">';
+  html+='<table class="usage-session-table"><thead><tr>';
+  html+='<th>#</th><th>First Prompt</th><th class="right">Tokens</th><th class="right">In / Out</th><th class="right">Queries</th><th>Model</th><th>Date</th>';
+  html+='</tr></thead><tbody>';
+
+  for(let i=0;i<Math.min(sessions.length,50);i++){
+    const s=sessions[i];
+    const prompt=s.first_prompt||'(no prompt)';
+    html+=`<tr>
+      <td style="color:var(--muted);font-family:var(--font-mono);font-size:10px">${i+1}</td>
+      <td><div class="sess-prompt" title="${esc(prompt)}">${esc(prompt)}</div></td>
+      <td class="right"><span class="sess-tokens">${fmt(s.total_tokens||0)}</span></td>
+      <td class="right" style="font-family:var(--font-mono);font-size:10px;color:var(--muted)">${fmt(s.input_tokens||0)} / ${fmt(s.output_tokens||0)}</td>
+      <td class="right"><span class="sess-queries">${s.query_count||0}</span></td>
+      <td><span class="sess-model">${esc((s.model||'unknown').replace('claude-','').replace('-20250219',''))}</span></td>
+      <td><span class="sess-date">${esc(s.date||'—')}</span></td>
+    </tr>`;
+  }
+
+  html+='</tbody></table></div>';
+  if(sessions.length>50) html+=`<div style="text-align:center;font-size:10px;color:var(--muted);margin-top:8px">Showing top 50 of ${sessions.length} sessions</div>`;
+  return html;
+}
+
+// ─── TOP PROMPTS TAB ─────────────────────────────────────────────────────────
+function renderUsageTopPrompts(fullR){
+  const prompts=(fullR&&fullR.top_prompts)||[];
+  if(!prompts.length) return '<div class="mem-empty">No prompts found</div>';
+
+  let html=`<div style="font-size:10px;color:var(--muted);margin-bottom:8px">Top ${prompts.length} most expensive prompts by total token cost</div>`;
+
+  for(let i=0;i<prompts.length;i++){
+    const p=prompts[i];
+    html+=`<div class="usage-prompt-row">
+      <div class="usage-prompt-rank">#${i+1}</div>
+      <div class="usage-prompt-body">
+        <div class="usage-prompt-text" title="${esc(p.prompt||'')}">${esc(p.prompt||'(empty)')}</div>
+        <div class="usage-prompt-meta">
+          <span class="pm-tokens">${fmt(p.total_tokens||0)} tokens</span>
+          <span style="color:var(--muted)">in: ${fmt(p.input_tokens||0)} / out: ${fmt(p.output_tokens||0)}</span>
+          <span class="pm-model">${esc((p.model||'unknown').replace('claude-','').replace('-20250219',''))}</span>
+          <span class="pm-date">${esc(p.date||'—')}</span>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  return html;
+}
+
+// ─── INSIGHTS TAB ────────────────────────────────────────────────────────────
+function renderUsageInsights(chartR, fullR){
+  const insights=(chartR&&chartR.insights)||[];
+  if(!insights.length) return '<div class="mem-empty">No insights available — keep using Claude and insights will appear as patterns emerge.</div>';
+
+  let html=`<div style="font-size:10px;color:var(--muted);margin-bottom:8px">${insights.length} insight${insights.length>1?'s':''} about your usage patterns</div>`;
+
+  for(const ins of insights){
+    const type=ins.type||'neutral';
+    const icon=type==='warning'?'&#9888;':type==='info'?'&#128161;':'&#128202;';
+    html+=`<div class="usage-insight ${type}">
+      <div class="usage-insight-title">${icon} ${esc(ins.title||'Insight')}</div>
+      <div class="usage-insight-desc">${esc(ins.description||'')}</div>
+      ${ins.action?`<div class="usage-insight-action">&#10148; ${esc(ins.action)}</div>`:''}
+    </div>`;
+  }
+
+  return html;
+}
+
+// ─── CHART RENDERING ─────────────────────────────────────────────────────────
+function renderUsageCharts(chartR){
+  if(!chartR) return;
+
+  const hasDaily = chartR.daily_labels && chartR.daily_labels.length;
+  const hasModels = chartR.model_labels && chartR.model_labels.length;
+
+  if(hasDaily){
+    const ctx=document.getElementById('usageDailyCanvas');
+    if(ctx && typeof Chart!=='undefined'){
+      _usageDailyChart=new Chart(ctx,{
+        type:'bar',
+        data:{
+          labels:chartR.daily_labels,
+          datasets:[
+            {label:'Input',data:chartR.daily_input,backgroundColor:'rgba(124,166,196,0.6)',borderColor:'rgba(124,166,196,1)',borderWidth:1},
+            {label:'Output',data:chartR.daily_output,backgroundColor:'rgba(80,181,131,0.6)',borderColor:'rgba(80,181,131,1)',borderWidth:1},
+          ]
+        },
+        options:{
+          responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{labels:{color:'#8a8878',font:{size:9}}}},
+          scales:{
+            x:{stacked:true,ticks:{color:'#8a8878',font:{size:8},maxRotation:45},grid:{color:'#3a3a3a'}},
+            y:{stacked:true,ticks:{color:'#8a8878',font:{size:9},callback:v=>v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e3?(v/1e3).toFixed(0)+'K':v},grid:{color:'#3a3a3a'}},
+          }
+        }
+      });
+    }
+  }
+
+  if(hasModels){
+    const ctx=document.getElementById('usageModelCanvas');
+    if(ctx && typeof Chart!=='undefined'){
+      const palette=['#7ca6c4','#50b583','#eab308','#f97316','#8b7ec6','#d97aa0','#5eb8c4','#ef4444'];
+      _usageModelChart=new Chart(ctx,{
+        type:'doughnut',
+        data:{
+          labels:chartR.model_labels,
+          datasets:[{data:chartR.model_tokens,backgroundColor:palette.slice(0,chartR.model_labels.length),borderWidth:0}]
+        },
+        options:{
+          responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{position:'bottom',labels:{color:'#8a8878',font:{size:9},padding:8,boxWidth:10}}}
+        }
+      });
+    }
+  }
+}
+
 function renderUsageLimitCard(label, data){
   const pct = data.percent_used!=null ? Math.min(100,Math.round(data.percent_used)) : 0;
   const cls = pct>=90?'crit':pct>=70?'warn':'ok';
   const statusLabel = cls==='crit'?'CRITICAL':cls==='warn'?'WARNING':'OK';
   const statusColor = cls==='crit'?'var(--red)':cls==='warn'?'var(--yellow)':'var(--green)';
   const tokens = fmt(data.tokens_used||0);
-  const cap = fmt(data.estimated_cap||0);
-  const reset = data.resets_in||'—';
+  const cap = fmt(data.token_cap||data.estimated_cap||0);
+  const reset = data.resets_in_label||data.resets_in||'—';
+  const queries = data.query_count!=null ? data.query_count : null;
   let html=`<div class="usage-card" style="border-color:${pct>=90?'var(--red)':pct>=70?'var(--yellow)':'var(--border)'}">
     <div class="usage-card-title" style="display:flex;justify-content:space-between;align-items:center">${esc(label)}<span style="color:${statusColor};font-size:9px;font-weight:800;letter-spacing:.5px">${statusLabel}</span></div>
     <div class="usage-stat"><span>${pct}% used</span><span class="val">${tokens} / ${cap}</span></div>
     <div class="usage-bar-wrap"><div class="usage-bar ${cls}" style="width:${pct}%"></div></div>
     <div class="usage-stat"><span>Resets in</span><span class="val">${esc(String(reset))}</span></div>
+    ${queries!=null?`<div class="usage-stat" style="margin-top:4px"><span>Queries in window</span><span class="val">${fmt(queries)}</span></div>`:''}
   </div>`;
   return html;
 }
