@@ -120,6 +120,22 @@ def chat_with_agent(req: ChatRequest, request: Request) -> ChatResponse:
 # -- Status endpoints ----------------------------------------------------------
 
 
+@router.get("/version")
+def get_version() -> dict[str, Any]:
+    """Return build SHA for the running instance."""
+    import subprocess
+
+    try:
+        sha = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    except Exception:
+        sha = "unknown"
+    return {"sha": sha}
+
+
 @router.get("/status")
 def system_status(request: Request) -> dict[str, Any]:
     """Get system-wide status including token usage."""

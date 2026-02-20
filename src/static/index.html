@@ -62,6 +62,7 @@ a:hover{text-decoration:underline}
 .status-pill.off .sd{background:var(--muted)}
 .sd{width:6px;height:6px;border-radius:50%;transition:all .3s}
 .clock{font-size:11px;color:var(--muted);font-family:var(--font-mono);font-weight:500}
+.build-sha{font-size:9px;color:var(--border);font-family:var(--font-mono);opacity:.6;user-select:all;cursor:default;padding-left:4px}
 
 /* ═══ MAIN 3-COL LAYOUT ═══════════════════════════════════════════════════ */
 .layout{flex:1;display:grid;grid-template-columns:260px 1fr 340px;overflow:hidden;transition:grid-template-columns .5s cubic-bezier(.4,0,.2,1)}
@@ -111,6 +112,9 @@ body.bridge-mode .layout{grid-template-columns:220px 1fr 340px}
 .hcard-row{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--muted)}
 .hcard-row .branch{font-family:var(--font-mono);color:var(--cyan);font-weight:600}
 .hcard-row .time{margin-left:auto}
+.hcard-actions{display:flex;gap:4px;margin-top:5px}
+.hcard-btn{background:none;border:1px solid var(--border);border-radius:3px;color:var(--muted);font-size:9px;padding:2px 6px;cursor:pointer;transition:border-color .15s,color .15s}
+.hcard-btn:hover{border-color:var(--accent);color:var(--accent)}
 
 /* ── Activity (sidebar, shown in both modes) ── */
 .activity-section{flex-shrink:0;max-height:140px;overflow:hidden;display:flex;flex-direction:column}
@@ -143,6 +147,8 @@ body.bridge-mode .workshop-only{display:none}
 .bridge-layer{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;transition:opacity .5s cubic-bezier(.4,0,.2,1),transform .5s cubic-bezier(.4,0,.2,1);z-index:1}
 body.workshop-mode .bridge-layer{opacity:0;transform:scale(.96);pointer-events:none}
 body.bridge-mode .bridge-layer{opacity:1;transform:scale(1)}
+/* Athena ghost mode: keep bridge layer visible (very dim) behind workshop content */
+body.workshop-mode.athena-scene-active .bridge-layer{opacity:1;transform:scale(1);z-index:0}
 
 /* ── Workshop Layer (file tree + windows) ── */
 .workshop-layer{position:absolute;inset:0;display:grid;grid-template-columns:240px 1fr;overflow:hidden;transition:opacity .5s cubic-bezier(.4,0,.2,1),transform .5s cubic-bezier(.4,0,.2,1);z-index:2}
@@ -457,6 +463,7 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
     <button class="tb-btn workshop-only" onclick="navigateToBridge()">&#127758; Bridge</button>
     <button class="tb-btn" onclick="refreshAll()">&#8635; Refresh</button>
     <span class="clock" id="clock"></span>
+    <span class="build-sha" id="buildSha" title="Build SHA">—</span>
   </div>
 </div>
 
@@ -537,10 +544,7 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
       </div>
       <div class="chat-agent-row">
         <select class="chat-agent-sel" id="agentSelect">
-          <option value="manager">Manager</option>
-          <option value="frontend">Frontend</option>
-          <option value="backend">Backend</option>
-          <option value="tester">Tester</option>
+          <!-- Populated dynamically by loadAgentList() from GET /api/agents -->
         </select>
         <span class="chat-agent-desc" id="agentDesc">Central coordinator</span>
       </div>
@@ -612,6 +616,19 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
   </div>
 </div>
 
+<!-- INCIDENTS OVERLAY -->
+<div class="usage-overlay" id="incidentsOverlay">
+  <div class="usage-container">
+    <div class="usage-header">
+      <span class="usage-title">&#9888; Incidents &amp; History</span>
+      <button class="board-close" onclick="closeIncidents()">&times;</button>
+    </div>
+    <div class="usage-body" id="incidentsBody">
+      <div style="color:var(--muted);font-size:12px;text-align:center;padding:20px">Loading...</div>
+    </div>
+  </div>
+</div>
+
 <!-- MEMORY OVERLAY -->
 <div class="mem-overlay" id="memOverlay">
   <div class="mem-container">
@@ -636,10 +653,25 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
+     ATHENA SCENE MODULES (must load before inline script)
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<script src="/static/sprites.js"></script>
+<script src="/static/scene.js"></script>
+<script src="/static/office.js"></script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
      JAVASCRIPT
      ═══════════════════════════════════════════════════════════════════════════ -->
 <script>
 const API = '/api';
+
+// ─── SCENE FEATURE FLAGS ──────────────────────────────────────────────────────
+// OFFICE_SCENE = true  → pixel office (walking agents, desks, tilemap)
+// ATHENA_SCENE = true  → geometric orbit scene (fallback when OFFICE_SCENE=false)
+// Both false           → original Jarvis orbital
+const OFFICE_SCENE = true;
+const ATHENA_SCENE = true;   // used only when OFFICE_SCENE = false
+let athenaScene = null;      // shared reference for whichever scene is active
 
 // ═══ MODE STATE ═════════════════════════════════════════════════════════════
 let currentMode = 'bridge'; // 'bridge' | 'workshop'
@@ -672,8 +704,12 @@ function applyMode() {
   // Persist mode
   localStorage.setItem('athenaMode', currentMode);
 
-  // Activate Jarvis canvas rendering when needed
-  if (currentMode === 'bridge') startJarvis();
+  // Activate canvas rendering
+  if (ATHENA_SCENE || OFFICE_SCENE) {
+    startAthena(); // picks OfficeScene or AthenaScene based on OFFICE_SCENE flag
+  } else {
+    if (currentMode === 'bridge') startJarvis();
+  }
 }
 
 // ═══ NAVIGATION COMPAT (kept for tests / external links) ════════════════════
@@ -859,6 +895,37 @@ function stopJarvis() {
   if (jarvisRaf) cancelAnimationFrame(jarvisRaf);
 }
 
+// ─── SCENE HELPERS ───────────────────────────────────────────────────────────
+function startAthena() {
+  const canvas = document.getElementById('jarvisCanvas');
+  if (!canvas) return;
+  if (!athenaScene) {
+    // Pick the right scene class based on feature flags
+    if (OFFICE_SCENE) athenaScene = new OfficeScene(canvas);
+    else              athenaScene = new AthenaScene(canvas);
+  }
+  athenaScene.setGhostMode(currentMode === 'workshop');
+  if (!athenaScene.running) athenaScene.start();
+  document.body.classList.toggle('athena-scene-active', true);
+  pollUsageForAthena();
+}
+
+function stopAthena() {
+  if (athenaScene) athenaScene.stop();
+}
+
+async function pollUsageForAthena() {
+  try {
+    const r = await fetch(`${API}/usage/limits`).then(r => r.json()).catch(() => null);
+    if (!r || !athenaScene) return;
+    const pct = Math.max(
+      (r.session_5h?.percent_used || 0),
+      (r.weekly_7d?.percent_used  || 0)
+    );
+    athenaScene.setUsageCrit(pct >= 90);
+  } catch(e) {}
+}
+
 // ═══ STATE ══════════════════════════════════════════════════════════════════
 let projects = [];
 let focusedId = null;
@@ -889,6 +956,17 @@ function tick(){ document.getElementById('clock').textContent=new Date().toLocal
 setInterval(tick,1000); tick();
 
 // ═══ API STATUS POLL ═══════════════════════════════════════════════════════
+async function fetchBuildSha(){
+  try{
+    const r=await fetch(`${API}/version`);
+    if(r.ok){
+      const d=await r.json();
+      const el=document.getElementById('buildSha');
+      if(el && d.sha) el.textContent='#'+d.sha;
+    }
+  }catch(e){}
+}
+
 async function pollApiStatus(){
   const pill = document.getElementById('apiStatus');
   const bbDot = document.getElementById('bbApiDot');
@@ -1010,8 +1088,23 @@ function renderHealthList(){
         <div class="hcard-badges"><span class="hbadge ${hClass}">${(p.health||'?').toUpperCase()}</span>${devBadge}</div>
       </div>
       <div class="hcard-row"><span class="branch">${esc(branch)}</span><span class="time">${ago}</span></div>
+      <div class="hcard-actions">
+        <button class="hcard-btn" onclick="event.stopPropagation();runHealthCheck('${escAttr(p.id)}')" title="Run health check now">&#10003; Check</button>
+        <button class="hcard-btn" onclick="event.stopPropagation();showIncidents('${escAttr(p.id)}')" title="View incidents">&#9888; Incidents</button>
+      </div>
     </div>`;
   }).join('');
+}
+
+async function runHealthCheck(projectId){
+  try{
+    const r=await fetch(`${API}/projects/${encodeURIComponent(projectId)}/check`,{method:'POST'});
+    if(r.ok){
+      addActivity('🔄',`Health check triggered: ${projectId}`);
+    } else {
+      addActivity('❌',`Health check failed: ${projectId}`);
+    }
+  }catch(e){ addActivity('❌','Health check error: '+e.message); }
 }
 
 // ═══ FOCUS PROJECT ═════════════════════════════════════════════════════════
@@ -1672,6 +1765,10 @@ function connectHealthSSE(){
       const data=JSON.parse(e.data);
       addActivity(data.status==='up'?'🟢':(data.status==='down'?'🔴':'🟡'),`${data.project_id}/${data.check_id}: ${data.status}`);
       loadProjects();
+      // Athena: map health status to tester sprite warning (tester owns health checks)
+      if(ATHENA_SCENE && athenaScene){
+        athenaScene.setAgentWarning('tester', data.status==='up' ? null : data.status);
+      }
     }catch(err){}
   });
   healthSSE.onerror=()=>{ setTimeout(connectHealthSSE,5000); };
@@ -2013,6 +2110,77 @@ function toggleUsage(){
   else{ overlay.classList.remove('open'); }
 }
 
+// ─── INCIDENTS & HISTORY ─────────────────────────────────────────────────────
+function closeIncidents(){
+  document.getElementById('incidentsOverlay').classList.remove('open');
+}
+
+async function showIncidents(projectId){
+  const overlay=document.getElementById('incidentsOverlay');
+  const body=document.getElementById('incidentsBody');
+  overlay.classList.add('open');
+  body.innerHTML='<div style="color:var(--muted);text-align:center;padding:20px">Loading...</div>';
+  try{
+    const [incR, projR] = await Promise.all([
+      fetch(`${API}/health/incidents?project_id=${encodeURIComponent(projectId)}&limit=20`).then(r=>r.json()).catch(()=>null),
+      fetch(`${API}/projects/${encodeURIComponent(projectId)}`).then(r=>r.json()).catch(()=>null),
+    ]);
+    let html='';
+    const proj=projR;
+    const projName=proj?.name||projectId;
+    html+=`<div class="usage-card-title" style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:8px">${esc(projName)}</div>`;
+
+    // Check history section (uptime bars per check)
+    if(proj?.checks?.length){
+      html+='<div class="usage-card"><div class="usage-card-title">Check History (24h uptime)</div>';
+      for(const chk of proj.checks){
+        const uptime=chk.uptime_24h??100;
+        const cls=uptime>=95?'ok':uptime>=70?'warn':'crit';
+        html+=`<div style="margin-bottom:8px">
+          <div class="usage-stat"><span>${esc(chk.check_id||chk.id||'check')}</span><span class="val">${uptime.toFixed(1)}%</span></div>
+          <div class="usage-bar-wrap"><div class="usage-bar ${cls}" style="width:${Math.min(100,uptime)}%"></div></div>
+          <div class="usage-stat" style="margin-top:2px"><span>Status</span><span class="val" style="color:${chk.status==='up'?'var(--green)':chk.status==='down'?'var(--red)':'var(--yellow)'}">${esc(chk.status||'—')}</span></div>
+        </div>`;
+      }
+      html+='</div>';
+    }
+
+    // Open incidents
+    const open=(incR?.open||[]);
+    const all=(incR?.incidents||[]);
+    if(open.length){
+      html+='<div class="usage-card" style="border-color:var(--red)"><div class="usage-card-title" style="color:var(--red)">&#9888; Open Incidents ('+open.length+')</div>';
+      for(const inc of open.slice(0,5)){
+        html+=`<div style="font-size:11px;padding:4px 0;border-bottom:1px solid var(--border)">
+          <strong>${esc(inc.check_id)}</strong> — ${esc(inc.message||'No message')}
+          <span style="color:var(--muted);float:right">${timeAgo(inc.started_at)}</span>
+        </div>`;
+      }
+      html+='</div>';
+    }
+
+    // Recent resolved
+    const resolved=all.filter(i=>i.resolved_at).slice(0,8);
+    if(resolved.length){
+      html+='<div class="usage-card"><div class="usage-card-title">Recent Resolved</div>';
+      for(const inc of resolved){
+        const durMs=inc.resolved_at&&inc.started_at?(new Date(inc.resolved_at)-new Date(inc.started_at)):null;
+        const dur=durMs?Math.round(durMs/60000)+'m':'—';
+        html+=`<div style="font-size:11px;padding:4px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--green)">✓</span> ${esc(inc.check_id)} — ${esc(inc.message||'Resolved')}
+          <span style="color:var(--muted);float:right">${timeAgo(inc.resolved_at)} (${dur})</span>
+        </div>`;
+      }
+      html+='</div>';
+    }
+
+    if(!html.includes('usage-card')){ html+='<div style="color:var(--muted);text-align:center;padding:20px">No incidents found</div>'; }
+    body.innerHTML=html;
+  }catch(e){
+    body.innerHTML=`<div style="color:var(--red);text-align:center;padding:20px">Error: ${esc(e.message)}</div>`;
+  }
+}
+
 async function loadUsageData(){
   const body=document.getElementById('usageBody');
   body.innerHTML='<div style="color:var(--muted);text-align:center;padding:20px">Loading usage data...</div>';
@@ -2151,6 +2319,8 @@ async function runMission(){
                 <div class="orch-phase-detail">${esc(parsed.detail||'')}</div>
               </div>`;
               body.scrollTop=body.scrollHeight;
+              // Athena: reflect current phase in scene status text
+              if(ATHENA_SCENE && athenaScene) athenaScene.setStatus((parsed.phase||'').toUpperCase());
             } else if(eventType==='subtask'){
               status.textContent='Subtask: '+parsed.agent+' - '+(parsed.status||'');
               body.innerHTML+=`<div class="orch-subtask">
@@ -2162,6 +2332,13 @@ async function runMission(){
                 ${parsed.result?'<div class="orch-subtask-result">'+esc(parsed.result)+'</div>':''}
               </div>`;
               body.scrollTop=body.scrollHeight;
+              // Athena: animate the active agent sprite
+              if(ATHENA_SCENE && athenaScene){
+                const agentState = parsed.status==='running' ? 'executing' : parsed.status==='error' ? 'error' : 'reviewing';
+                athenaScene.resetAllAgents('idle');
+                athenaScene.setAgentState(parsed.agent||'manager', agentState);
+                athenaScene.setStatus((parsed.agent||'?').toUpperCase());
+              }
             } else if(eventType==='done'){
               status.textContent='Mission complete!';
               body.innerHTML+=`<div class="orch-final">
@@ -2170,10 +2347,14 @@ async function runMission(){
               </div>`;
               body.scrollTop=body.scrollHeight;
               addActivity('✅','Mission complete');
+              // Athena: return all agents to idle
+              if(ATHENA_SCENE && athenaScene){ athenaScene.resetAllAgents('idle'); athenaScene.setStatus('DONE'); }
             } else if(eventType==='error'){
               status.textContent='Error';
               body.innerHTML+=`<div class="orch-phase"><div class="orch-phase-title error">❌ Error</div><div class="orch-phase-detail">${esc(parsed.detail||'Unknown error')}</div></div>`;
               addActivity('❌','Mission error: '+(parsed.detail||''));
+              // Athena: error state on all sprites
+              if(ATHENA_SCENE && athenaScene){ athenaScene.resetAllAgents('error'); athenaScene.setStatus('ERROR'); }
             }
           }catch(e){}
         }
@@ -2333,6 +2514,7 @@ document.addEventListener('keydown',e=>{
     else if(usageOpen) toggleUsage();
     else if(orchOpen) toggleOrchestrator();
     else if(memOpen) toggleMemory();
+    else if(document.getElementById('incidentsOverlay')?.classList.contains('open')) closeIncidents();
   }
 });
 
@@ -2374,6 +2556,7 @@ async function init(){
     });
   }
 
+  fetchBuildSha();
   await pollApiStatus();
   await pollRunner();
   await loadProjects();
