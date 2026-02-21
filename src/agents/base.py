@@ -7,6 +7,7 @@ from typing import Any
 
 from src.agents.sims.drives import DriveSystem
 from src.agents.sims.personality import Personality
+from src.memory.context_assembler import ContextAssembler, ConversationCompressor
 from src.memory.mem0_client import AgentMemory
 from src.safety.injection_guard import assert_safe
 from src.token_tracker.tracker import TokenTracker
@@ -55,42 +56,73 @@ class BaseAgent:
         # If an alternate LLM backend is provided (e.g. OpenAIBackend),
         # use it for LLM calls instead of the Claude CLI tracker.
         self._llm_backend = llm_backend
+        # Tiered context assembly (rebuilds prompt from scratch each turn)
+        self._context_assembler = ContextAssembler()
+        self._conversation_compressor = ConversationCompressor()
+        self._conversation_summary: str = ""
 
     # -- system prompt ---------------------------------------------------------
 
     def system_prompt(self, task_context: str = "") -> str:
-        """Build the full system prompt including personality, drives, and memory."""
-        parts: list[str] = []
+        """Build the full system prompt using tiered context assembly.
 
-        # Role description
+        Uses ContextAssembler to fit everything within a token budget:
+        identity > drives > hot memories > task > warm memories > conversation > cold refs
+        """
+        # Identity = role description + personality
         role = self._role_description()
-        if role:
-            parts.append(role)
-
-        # Personality injection
         personality_text = self.personality.to_prompt_fragment()
+        identity = role
         if personality_text:
-            parts.append(personality_text)
+            identity += "\n\n" + personality_text
 
-        # Drive state injection
+        # Drive state
         drive_text = self.drives.to_prompt_fragment()
-        if drive_text:
-            parts.append(drive_text)
 
-        # Memory context: project_memory takes precedence for task context
-        active_memory = self.project_memory or self.memory
-        if active_memory and task_context:
-            mem_ctx = active_memory.get_relevant_context(task_context)
-            if mem_ctx:
-                parts.append(mem_ctx)
+        # Memory tiers — try to load curated memories if curator available
+        hot_memories: list[str] = []
+        warm_memories: list[str] = []
+        cold_references: list[str] = []
 
-        # For Athena (manager): also inject global user-profile memory when in a project context
+        try:
+            from src.memory.curator import MemoryCurator, MemoryTier, MemoryCurationStore
+            store = MemoryCurationStore()
+            # Hot memories — always included
+            hot = store.list_by_tier(self.agent_id, MemoryTier.HOT)
+            hot_memories = [m.content for m in hot]
+            # Warm memories — contextually relevant
+            warm = store.list_by_tier(self.agent_id, MemoryTier.WARM)
+            warm_memories = [m.content for m in warm[:15]]  # cap to prevent overflow
+            # Cold references
+            cold = store.list_by_tier(self.agent_id, MemoryTier.COLD)
+            cold_references = [m.content for m in cold[:5]]
+        except Exception:
+            # Fallback to raw mem0 search
+            active_memory = self.project_memory or self.memory
+            if active_memory and task_context:
+                mem_ctx = active_memory.get_relevant_context(task_context)
+                if mem_ctx:
+                    warm_memories = [mem_ctx]
+
+        # For Athena (manager): also inject global user-profile memory
         if self.project_memory and self.memory and task_context:
-            global_ctx = self.memory.get_relevant_context(task_context, limit=3)
-            if global_ctx:
-                parts.append("Global user context:\n" + global_ctx)
+            try:
+                global_ctx = self.memory.get_relevant_context(task_context, limit=3)
+                if global_ctx:
+                    hot_memories.insert(0, "Global user context:\n" + global_ctx)
+            except Exception:
+                pass
 
-        return "\n\n".join(parts)
+        # Use context assembler for budget-aware prompt construction
+        return self._context_assembler.assemble(
+            identity_text=identity,
+            drives_text=drive_text,
+            hot_memories=hot_memories,
+            warm_memories=warm_memories,
+            conversation_summary=self._conversation_summary,
+            task_context=task_context,
+            cold_references=cold_references,
+        )
 
     def _role_description(self) -> str:
         """Override in subclasses to provide agent-specific role description."""
@@ -114,9 +146,14 @@ class BaseAgent:
         assert_safe(user_message)
         self._conversation.append({"role": "user", "content": user_message})
 
-        # Trim conversation to sliding window to control token costs
+        # Compress old conversation instead of raw truncation
         if len(self._conversation) > MAX_CONVERSATION_MESSAGES:
-            self._conversation = self._conversation[-MAX_CONVERSATION_MESSAGES:]
+            self._conversation_summary, self._conversation = \
+                self._conversation_compressor.compress(
+                    self._conversation,
+                    existing_summary=self._conversation_summary,
+                    max_recent=MAX_CONVERSATION_MESSAGES // 2,
+                )
 
         # Tick the drive system (simulate work)
         self.drives.tick(minutes_worked=0.5)
@@ -159,9 +196,14 @@ class BaseAgent:
         assert_safe(user_message)
         self._conversation.append({"role": "user", "content": user_message})
 
-        # Trim conversation to sliding window to control token costs
+        # Compress old conversation instead of raw truncation
         if len(self._conversation) > MAX_CONVERSATION_MESSAGES:
-            self._conversation = self._conversation[-MAX_CONVERSATION_MESSAGES:]
+            self._conversation_summary, self._conversation = \
+                self._conversation_compressor.compress(
+                    self._conversation,
+                    existing_summary=self._conversation_summary,
+                    max_recent=MAX_CONVERSATION_MESSAGES // 2,
+                )
 
         self.drives.tick(minutes_worked=0.5)
 

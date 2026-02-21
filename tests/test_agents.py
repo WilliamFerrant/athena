@@ -169,7 +169,7 @@ class TestSpecialistAgents:
 
     def test_manager_agent_personality(self, tracker):
         agent = ManagerAgent(agent_id="mgr", tracker=tracker)
-        assert agent.personality.name == "Project Manager"
+        assert agent.personality.name == "Athena"
         assert agent.agent_type == "manager"
 
     def test_frontend_build_component(self, tracker):

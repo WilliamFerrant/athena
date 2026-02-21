@@ -194,6 +194,11 @@ def chat_with_agent(req: ChatRequest, request: Request) -> ChatResponse:
     """Chat directly with a specific agent."""
     tracker: TokenTracker = request.app.state.tracker
 
+    # Record user activity for heartbeat idle timer
+    heartbeat = getattr(request.app.state, "heartbeat", None)
+    if heartbeat:
+        heartbeat.record_user_activity()
+
     if tracker.is_over_budget:
         raise HTTPException(status_code=429, detail="Daily call limit exhausted")
 
@@ -719,3 +724,95 @@ async def stream_orchestrator(req: StreamTaskRequest, request: Request):
             "X-Accel-Buffering": "no",
         },
     )
+
+# -- Heartbeat / Autonomy endpoints -------------------------------------------
+
+
+@router.get("/heartbeat/status")
+def heartbeat_status(request: Request) -> dict[str, Any]:
+    """Get the autonomous heartbeat scheduler status."""
+    heartbeat = getattr(request.app.state, "heartbeat", None)
+    if not heartbeat:
+        return {"running": False, "error": "Heartbeat scheduler not initialized"}
+    return heartbeat.status()
+
+
+@router.post("/heartbeat/toggle")
+def heartbeat_toggle(request: Request) -> dict[str, Any]:
+    """Start or stop the heartbeat scheduler."""
+    heartbeat = getattr(request.app.state, "heartbeat", None)
+    if not heartbeat:
+        raise HTTPException(status_code=503, detail="Heartbeat scheduler not initialized")
+
+    import asyncio as _asyncio
+    if heartbeat._running:
+        _asyncio.ensure_future(heartbeat.stop())
+        return {"running": False, "message": "Heartbeat stopped"}
+    else:
+        _asyncio.ensure_future(heartbeat.start())
+        return {"running": True, "message": "Heartbeat started"}
+
+
+@router.post("/heartbeat/poke")
+def heartbeat_record_activity(request: Request) -> dict[str, str]:
+    """Record user activity (resets the idle timer)."""
+    heartbeat = getattr(request.app.state, "heartbeat", None)
+    if heartbeat:
+        heartbeat.record_user_activity()
+    return {"status": "ok"}
+
+
+# -- Memory curation endpoints ------------------------------------------------
+
+
+@router.get("/memory/curation/{agent_id}")
+def memory_curation_stats(agent_id: str, request: Request) -> dict[str, Any]:
+    """Get memory curation statistics for an agent."""
+    curator = getattr(request.app.state, "memory_curator", None)
+    if not curator:
+        return {"error": "Memory curator not initialized"}
+    return curator.stats(agent_id)
+
+
+@router.post("/memory/curate/{agent_id}")
+def trigger_curation(agent_id: str, request: Request) -> dict[str, Any]:
+    """Manually trigger memory curation for an agent's memories."""
+    curator = getattr(request.app.state, "memory_curator", None)
+    if not curator:
+        raise HTTPException(status_code=503, detail="Memory curator not initialized")
+
+    agents = getattr(request.app.state, "agents", {})
+    agent = agents.get(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
+
+    memory = agent.project_memory or agent.memory
+    if not memory:
+        return {"curated": 0, "message": "No memory configured for this agent"}
+
+    raw_memories = memory.get_all()
+    curated = curator.categorize_memories(raw_memories, agent_id)
+    return {
+        "curated": len(curated),
+        "stats": curator.stats(agent_id),
+    }
+
+
+@router.post("/memory/archive/{agent_id}")
+def trigger_archive(agent_id: str, request: Request) -> dict[str, Any]:
+    """Archive cold/unused memories for an agent."""
+    curator = getattr(request.app.state, "memory_curator", None)
+    if not curator:
+        raise HTTPException(status_code=503, detail="Memory curator not initialized")
+    archived = curator.archive_cold_memories(agent_id)
+    return {"archived": archived, "stats": curator.stats(agent_id)}
+
+
+@router.get("/memory/evolution/{memory_id}")
+def memory_evolution_chain(memory_id: str, request: Request) -> dict[str, Any]:
+    """Get the historical evolution chain of a memory."""
+    curator = getattr(request.app.state, "memory_curator", None)
+    if not curator:
+        raise HTTPException(status_code=503, detail="Memory curator not initialized")
+    chain = curator.get_evolution_chain(memory_id)
+    return {"chain": [m.to_dict() for m in chain]}
