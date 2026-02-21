@@ -12,7 +12,7 @@ class RunnerSettings(BaseSettings):
 
     # Bind address
     runner_host: str = "127.0.0.1"
-    runner_port: int = 7777
+    runner_port: int = 7776
 
     # Auth
     runner_token: str = ""
