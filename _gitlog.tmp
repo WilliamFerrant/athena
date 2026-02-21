@@ -1,5 +1,0 @@
-fe2801c fix: max_tokensΓåÆmax_completion_tokens for GPT-5.1 + error spam prevention- OpenAI backend: use max_completion_tokens (required by GPT-5.1)- Discord handler: suppress error replies, show friendly message- Heartbeat: exponential backoff after consecutive LLM errors- Heartbeat callback: skip Discord broadcast for error actions
-3d5eaeb deps: add discord.py to requirements
-b46096e feat: swap Telegram for Discord bidirectional comms
-e5c59ce feat: autonomous heartbeat, memory curation pipeline, tiered context assembly, Telegram bidirectional comms
-3b1ff32 fixed persona so she will match girl syntax
