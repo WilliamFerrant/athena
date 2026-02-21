@@ -84,6 +84,58 @@ def runner_status(request: Request) -> dict[str, Any]:
     return poller.state.to_dict()
 
 
+@runner_router.get("/debug")
+def runner_debug(request: Request) -> dict[str, Any]:
+    """Debug runner connectivity — returns the exact error when offline.
+
+    Useful for diagnosing SSH tunnel issues without reading server logs.
+    Visit /api/runner/debug in your browser to see what's failing.
+    """
+    from src.config import settings
+
+    client = _get_client(request)
+    poller = request.app.state.runner_poller
+
+    result: dict[str, Any] = {
+        "runner_base_url": settings.runner_base_url,
+        "poller_state": poller.state.to_dict(),
+    }
+    try:
+        health = client.health()
+        result["health"] = {"ok": True, "version": health.version, "platform": health.platform}
+    except RunnerOfflineError as e:
+        result["health"] = {
+            "ok": False,
+            "error": str(e),
+            "hint": "Is companion-runner running? Is the SSH tunnel open?",
+        }
+    except RunnerError as e:
+        result["health"] = {"ok": False, "error": f"HTTP {e.status_code}: {e.detail}"}
+    except Exception as e:
+        result["health"] = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+    return result
+
+
+@runner_router.get("/usage")
+def runner_usage(request: Request) -> dict[str, Any]:
+    """Proxy local ~/.claude usage data from the runner through the tunnel.
+
+    When runner is online, returns real token usage from your local machine.
+    When offline, returns empty so the dashboard shows 0 instead of an error.
+    """
+    poller = request.app.state.runner_poller
+    if not poller.state.online:
+        return {"ok": False, "online": False, "data": {}}
+
+    client = _get_client(request)
+    try:
+        data = client.usage()
+        return {"ok": True, "online": True, **data}
+    except (RunnerOfflineError, RunnerError) as e:
+        return {"ok": False, "online": False, "error": str(e), "data": {}}
+
+
 @runner_router.post("/cmd")
 def proxy_cmd(body: RunCmdBody, request: Request) -> dict[str, Any]:
     """Execute a command on the runner."""

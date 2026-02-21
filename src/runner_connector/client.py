@@ -138,3 +138,8 @@ class RunnerClient:
         """POST /git/push-pr"""
         resp = self._post("/git/push-pr", req.model_dump(), timeout=120.0)
         return PrResult(**resp.json())
+
+    def usage(self) -> dict[str, Any]:
+        """GET /usage — fetch local ~/.claude usage data through the tunnel."""
+        resp = self._get("/usage", timeout=15.0)
+        return resp.json()

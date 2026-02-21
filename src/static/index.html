@@ -2438,13 +2438,38 @@ async function loadUsageData(){
   body.innerHTML='<div style="color:var(--muted);text-align:center;padding:20px">Loading usage data...</div>';
 
   try{
-    const [chartR, limitsR, fullR] = await Promise.all([
-      fetch(`${API}/usage/chart-data`).then(r=>r.json()).catch(()=>null),
-      fetch(`${API}/usage/limits`).then(r=>r.json()).catch(()=>null),
-      fetch(`${API}/usage`).then(r=>r.json()).catch(()=>null),
-    ]);
+    // Try to fetch real ~/.claude usage from local runner through SSH tunnel.
+    // Falls back to VPS-side parse (returns 0 when Claude CLI not installed there).
+    let chartR=null, limitsR=null, fullR=null;
 
-    _usageCachedData={chartR, limitsR, fullR, fetchedAt: new Date()};
+    const runnerUsage = await fetch(`${API}/runner/usage`).then(r=>r.json()).catch(()=>null);
+    if(runnerUsage && runnerUsage.ok && runnerUsage.data && Object.keys(runnerUsage.data).length){
+      const d = runnerUsage.data;
+      // Build chartR from runner data
+      const daily = d.daily_usage || [];
+      const models = d.model_breakdown || [];
+      chartR = {
+        daily_labels: daily.slice(-14).map(x=>x.date),
+        daily_input:  daily.slice(-14).map(x=>x.input_tokens||0),
+        daily_output: daily.slice(-14).map(x=>x.output_tokens||0),
+        model_labels: models.map(x=>x.model),
+        model_tokens: models.map(x=>x.total_tokens||0),
+        totals:   d.totals||{},
+        insights: d.insights||[],
+        rate_limits: d.rate_limits||null,
+      };
+      limitsR = d.rate_limits || null;
+      fullR = d;
+    } else {
+      // Runner offline — fall back to VPS endpoints (will show 0 on remote VPS)
+      [chartR, limitsR, fullR] = await Promise.all([
+        fetch(`${API}/usage/chart-data`).then(r=>r.json()).catch(()=>null),
+        fetch(`${API}/usage/limits`).then(r=>r.json()).catch(()=>null),
+        fetch(`${API}/usage`).then(r=>r.json()).catch(()=>null),
+      ]);
+    }
+
+    _usageCachedData={chartR, limitsR, fullR, fetchedAt: new Date(), viaRunner: !!(runnerUsage&&runnerUsage.ok)};
     renderUsageTab();
 
     // Auto-refresh every 30s
@@ -2458,15 +2483,16 @@ async function loadUsageData(){
 
 function renderUsageTab(){
   const body=document.getElementById('usageBody');
-  const {chartR, limitsR, fullR, fetchedAt}=_usageCachedData;
+  const {chartR, limitsR, fullR, fetchedAt, viaRunner}=_usageCachedData;
   const now=fetchedAt?fetchedAt.toLocaleTimeString():new Date().toLocaleTimeString();
+  const src=viaRunner?' &middot; <span style="color:var(--green)">&#9679; via local runner</span>':' &middot; <span style="color:var(--muted)">(runner offline — connect runner for real data)</span>';
 
   // Destroy previous chart instances
   if(_usageDailyChart){ _usageDailyChart.destroy(); _usageDailyChart=null; }
   if(_usageModelChart){ _usageModelChart.destroy(); _usageModelChart=null; }
 
   let html=`<div class="usage-refresh-bar">
-    <span class="usage-auto-tag">Last refreshed: ${now} &middot; auto-refresh 30s</span>
+    <span class="usage-auto-tag">Last refreshed: ${now} &middot; auto-refresh 30s${src}</span>
     <button class="usage-refresh-btn" onclick="loadUsageData()">&#8635; Refresh</button>
   </div>`;
 

@@ -172,6 +172,36 @@ def health_check() -> dict[str, Any]:
     }
 
 
+@router.get("/usage")
+def local_usage() -> dict[str, Any]:
+    """Serve local Claude Code usage data (~/.claude) over the tunnel.
+
+    The VPS cannot access ~/.claude directly — this endpoint exposes it
+    through the reverse SSH tunnel so the dashboard shows real usage data.
+    """
+    try:
+        from src.token_tracker.session_parser import (
+            compute_rate_limits,
+            parse_all_sessions,
+            report_to_dict,
+        )
+        from src.config import settings
+
+        report = parse_all_sessions()
+        rate_limits = compute_rate_limits(
+            session_cap=settings.session_limit_tokens,
+            weekly_cap=settings.weekly_limit_tokens,
+            session_window_hours=settings.session_window_hours,
+            weekly_window_days=settings.weekly_window_days,
+        )
+        data = report_to_dict(report)
+        data["rate_limits"] = rate_limits
+        return {"ok": True, "data": data}
+    except Exception as e:
+        logger.warning("Usage data unavailable: %s", e)
+        return {"ok": False, "error": str(e), "data": {}}
+
+
 @router.post("/cmd", response_model=CmdResponse)
 def run_command(req: CmdRequest, request: Request) -> CmdResponse:
     """Execute an arbitrary command in a project directory."""
