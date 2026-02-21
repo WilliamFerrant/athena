@@ -177,9 +177,9 @@ body.workshop-mode .workshop-layer{opacity:1;transform:scale(1)}
 .win-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;font-style:italic}
 
 /* ═══ JARVIS ORBITAL VISUALIZATION ═══════════════════════════════════════ */
-.jarvis-container{position:relative;width:500px;height:500px}
-.jarvis-canvas{width:100%;height:100%}
-.jarvis-status{position:absolute;bottom:0;left:50%;transform:translateX(-50%);font-size:12px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;font-weight:600}
+.jarvis-container{position:absolute;inset:0;width:100%;height:100%}
+.jarvis-canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.jarvis-status{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);font-size:12px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;font-weight:600;z-index:1}
 
 /* ═══ FLOATING WINDOWS ═══════════════════════════════════════════════════ */
 .float-win{position:absolute;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.5);display:flex;flex-direction:column;min-width:400px;min-height:250px;overflow:hidden;transition:box-shadow .15s}
@@ -637,12 +637,9 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
       <span class="proj-label" id="focusedLabel">No project selected</span>
     </div>
     <div class="center-body">
-      <!-- Bridge Layer: Jarvis Orbital -->
+      <!-- Bridge Layer: Living Orchestration Diagram -->
       <div class="bridge-layer" id="bridgeLayer">
-        <div class="jarvis-container">
-          <canvas class="jarvis-canvas" id="jarvisCanvas"></canvas>
-          <div class="jarvis-status" id="jarvisStatus">IDLE</div>
-        </div>
+        <div id="livingDiagram"></div>
       </div>
       <!-- Workshop Layer: File Tree + Windows -->
       <div class="workshop-layer" id="workshopLayer">
@@ -855,6 +852,9 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
 <script src="/static/sprites.js"></script>
 <script src="/static/scene.js"></script>
 <script src="/static/office.js"></script>
+<script src="/static/nexus.js"></script>
+<link rel="stylesheet" href="/static/living-diagram.css">
+<script src="/static/living-diagram.js"></script>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
      JAVASCRIPT
@@ -863,12 +863,11 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
 const API = '/api';
 
 // ─── SCENE FEATURE FLAGS ──────────────────────────────────────────────────────
-// OFFICE_SCENE = true  → pixel office (walking agents, desks, tilemap)
-// ATHENA_SCENE = true  → geometric orbit scene (fallback when OFFICE_SCENE=false)
-// Both false           → original Jarvis orbital
-const OFFICE_SCENE = true;
-const ATHENA_SCENE = true;   // used only when OFFICE_SCENE = false
-let athenaScene = null;      // shared reference for whichever scene is active
+// Legacy scene flags — all disabled; replaced by living-diagram.js
+const NEXUS_SCENE  = false;
+const OFFICE_SCENE = false;
+const ATHENA_SCENE = false;
+let athenaScene = null; // kept for safety (some SSE code references it)
 
 // ═══ MODE STATE ═════════════════════════════════════════════════════════════
 let currentMode = 'bridge'; // 'bridge' | 'workshop'
@@ -901,12 +900,9 @@ function applyMode() {
   // Persist mode
   localStorage.setItem('athenaMode', currentMode);
 
-  // Activate canvas rendering
-  if (ATHENA_SCENE || OFFICE_SCENE) {
-    startAthena(); // picks OfficeScene or AthenaScene based on OFFICE_SCENE flag
-  } else {
-    if (currentMode === 'bridge') startJarvis();
-  }
+  // Initialise living orchestration diagram (idempotent)
+  const ldEl = document.getElementById('livingDiagram');
+  if (ldEl && window.LD) LD.init(ldEl);
 }
 
 // ═══ NAVIGATION COMPAT (kept for tests / external links) ════════════════════
@@ -1097,30 +1093,48 @@ function startAthena() {
   const canvas = document.getElementById('jarvisCanvas');
   if (!canvas) return;
   if (!athenaScene) {
-    // Pick the right scene class based on feature flags
-    if (OFFICE_SCENE) athenaScene = new OfficeScene(canvas);
-    else              athenaScene = new AthenaScene(canvas);
+    // Precedence: Nexus → Office → AthenaScene
+    if (NEXUS_SCENE && typeof NexusScene !== 'undefined') athenaScene = new NexusScene(canvas);
+    else if (OFFICE_SCENE) athenaScene = new OfficeScene(canvas);
+    else                   athenaScene = new AthenaScene(canvas);
   }
   athenaScene.setGhostMode(currentMode === 'workshop');
   if (!athenaScene.running) athenaScene.start();
   document.body.classList.toggle('athena-scene-active', true);
-  pollUsageForAthena();
+  pollNexusData();
 }
 
 function stopAthena() {
   if (athenaScene) athenaScene.stop();
 }
 
-async function pollUsageForAthena() {
+// Poll live data and feed it to the nexus scene
+async function pollNexusData() {
   try {
-    const r = await fetch(`${API}/usage/limits`).then(r => r.json()).catch(() => null);
-    if (!r || !athenaScene) return;
-    const pct = Math.max(
-      (r.session?.percent_used || 0),
-      (r.weekly?.percent_used  || 0)
-    );
-    athenaScene.setUsageCrit(pct >= 90);
+    // Token budget
+    const usage = await fetch(`${API}/usage/limits`).then(r => r.json()).catch(() => null);
+    if (usage && athenaScene) {
+      const pct = Math.max(usage.session?.percent_used||0, usage.weekly?.percent_used||0);
+      athenaScene.setUsageCrit(pct >= 90);
+      // Feed budget numbers to Nexus
+      if (athenaScene.setTokenBudget) {
+        const used = usage.session?.calls_used || 0;
+        const total = usage.session?.calls_limit || 200;
+        athenaScene.setTokenBudget(used, total);
+      }
+    }
+    // Agent drives
+    if (athenaScene && athenaScene.setDrives) {
+      const agents = await fetch(`${API}/agents`).then(r => r.json()).catch(() => []);
+      for (const ag of agents) {
+        if (ag.drives) athenaScene.setDrives(ag.id, ag.drives);
+      }
+    }
   } catch(e) {}
+  // Re-poll every 15s if scene is still active
+  if (athenaScene && athenaScene.running) {
+    setTimeout(pollNexusData, 15000);
+  }
 }
 
 // ═══ STATE ══════════════════════════════════════════════════════════════════
@@ -1202,6 +1216,7 @@ async function pollRunner(){
   }catch(e){ runnerOnline=false; runnerState={online:false}; }
   updateRunnerUI();
   updateActionButtons();
+  if(window.LD) LD.setRunnerOnline(runnerOnline);
 }
 
 function updateRunnerUI(){
@@ -1320,6 +1335,7 @@ async function focusProject(id){
   updateChatCtx();
   document.getElementById('bbFocused').textContent=focusedProject?focusedProject.name:'—';
   addActivity('📂', `Focused: ${focusedProject?focusedProject.name:id}`);
+  if(window.LD) LD.setFocusedProject(focusedProject?focusedProject.name:id);
 }
 
 async function refreshFocused(){
@@ -1981,9 +1997,11 @@ function connectHealthSSE(){
       const data=JSON.parse(e.data);
       addActivity(data.status==='up'?'🟢':(data.status==='down'?'🔴':'🟡'),`${data.project_id}/${data.check_id}: ${data.status}`);
       loadProjects();
-      // Athena: map health status to tester sprite warning (tester owns health checks)
-      if(ATHENA_SCENE && athenaScene){
-        athenaScene.setAgentWarning('tester', data.status==='up' ? null : data.status);
+      // Living diagram: reflect health status
+      if(window.LD){
+        const hs = data.status==='up' ? 'green' : data.status==='down' ? 'incident' : 'warn';
+        LD.setHealthStatus(hs);
+        if(data.status!=='up') LD.setLastEvent('health: '+data.project_id+'/'+data.check_id+' '+data.status);
       }
     }catch(err){}
   });
@@ -2761,8 +2779,15 @@ async function runMission(){
                 <div class="orch-phase-detail">${esc(parsed.detail||'')}</div>
               </div>`;
               body.scrollTop=body.scrollHeight;
-              // Athena: reflect current phase in scene status text
-              if(ATHENA_SCENE && athenaScene) athenaScene.setStatus((parsed.phase||'').toUpperCase());
+              // Living diagram: reflect phase
+              if(window.LD){
+                const ph=parsed.phase||'';
+                if(ph==='planning')    LD.setAgentState('manager','planning','decomposing task','out');
+                else if(ph==='executing') LD.setGlobalState('active');
+                else if(ph==='reviewing') LD.setAgentState('manager','reviewing','','in');
+                else if(ph==='synthesizing') LD.setAgentState('manager','executing','synthesising','out');
+                LD.setLastEvent('phase: '+ph);
+              }
             } else if(eventType==='subtask'){
               status.textContent='Subtask: '+parsed.agent+' - '+(parsed.status||'');
               body.innerHTML+=`<div class="orch-subtask">
@@ -2774,12 +2799,13 @@ async function runMission(){
                 ${parsed.result?'<div class="orch-subtask-result">'+esc(parsed.result)+'</div>':''}
               </div>`;
               body.scrollTop=body.scrollHeight;
-              // Athena: animate the active agent sprite
-              if(ATHENA_SCENE && athenaScene){
-                const agentState = parsed.status==='running' ? 'executing' : parsed.status==='error' ? 'error' : 'reviewing';
-                athenaScene.resetAllAgents('idle');
-                athenaScene.setAgentState(parsed.agent||'manager', agentState);
-                athenaScene.setStatus((parsed.agent||'?').toUpperCase());
+              // Living diagram: animate the active agent spoke
+              if(window.LD){
+                const agId=parsed.agent||'manager';
+                const agSt=parsed.status==='running'?'executing':parsed.status==='error'?'error':'reviewing';
+                const agDir=agSt==='reviewing'?'in':'out';
+                LD.setAgentState(agId, agSt, parsed.task||'', agDir);
+                LD.setLastEvent(agId+': '+(parsed.task||parsed.status||''));
               }
             } else if(eventType==='done'){
               status.textContent='Mission complete!';
@@ -2789,14 +2815,14 @@ async function runMission(){
               </div>`;
               body.scrollTop=body.scrollHeight;
               addActivity('✅','Mission complete');
-              // Athena: return all agents to idle
-              if(ATHENA_SCENE && athenaScene){ athenaScene.resetAllAgents('idle'); athenaScene.setStatus('DONE'); }
+              // Living diagram: mission done
+              if(window.LD){ LD.resetAllAgents('idle'); LD.setGlobalState('idle'); LD.setLastEvent('mission complete'); }
             } else if(eventType==='error'){
               status.textContent='Error';
               body.innerHTML+=`<div class="orch-phase"><div class="orch-phase-title error">❌ Error</div><div class="orch-phase-detail">${esc(parsed.detail||'Unknown error')}</div></div>`;
               addActivity('❌','Mission error: '+(parsed.detail||''));
-              // Athena: error state on all sprites
-              if(ATHENA_SCENE && athenaScene){ athenaScene.resetAllAgents('error'); athenaScene.setStatus('ERROR'); }
+              // Living diagram: error state
+              if(window.LD){ LD.resetAllAgents('error'); LD.setGlobalState('error'); LD.setLastEvent('mission error'); }
             }
           }catch(e){}
         }
@@ -3347,6 +3373,10 @@ async function init(){
       });
     });
   }
+
+  // Initialise living orchestration diagram
+  const _ldEl = document.getElementById('livingDiagram');
+  if(_ldEl && window.LD) LD.init(_ldEl);
 
   fetchBuildSha();
   await pollApiStatus();
