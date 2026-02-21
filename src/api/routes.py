@@ -39,6 +39,7 @@ class ChatRequest(BaseModel):
     agent: str
     message: str
     task_context: str = ""
+    project_id: str | None = None
 
 
 class ChatResponse(BaseModel):
@@ -82,6 +83,16 @@ def submit_task(req: TaskRequest, request: Request) -> TaskResponse:
 # -- Chat endpoints ------------------------------------------------------------
 
 
+@router.get("/chat/greet")
+def athena_greet(request: Request) -> dict[str, str]:
+    """Get Athena's greeting message, personalized via her global memory."""
+    agents = getattr(request.app.state, "agents", {})
+    manager = agents.get("manager")
+    if not manager or not hasattr(manager, "greet_user"):
+        return {"greeting": "Hello! I'm Athena. How can I help?"}
+    return {"greeting": manager.greet_user()}
+
+
 @router.post("/chat", response_model=ChatResponse)
 def chat_with_agent(req: ChatRequest, request: Request) -> ChatResponse:
     """Chat directly with a specific agent."""
@@ -95,7 +106,16 @@ def chat_with_agent(req: ChatRequest, request: Request) -> ChatResponse:
     if not agent:
         raise HTTPException(status_code=400, detail=f"Unknown agent: {req.agent}")
 
-    response = agent.chat(req.message, task_context=req.task_context)
+    # Scope memory to project when project_id is provided
+    if req.project_id:
+        try:
+            agent.project_memory = AgentMemory(agent_id=req.agent, project_id=req.project_id)
+        except Exception:
+            agent.project_memory = None
+    else:
+        agent.project_memory = None
+
+    response = agent.chat(req.message, task_context=req.task_context or req.project_id or "")
 
     return ChatResponse(
         response=response,
@@ -409,6 +429,7 @@ class StreamChatRequest(BaseModel):
     agent: str
     message: str
     task_context: str = ""
+    project_id: str | None = None
 
 
 @router.post("/chat/stream")
@@ -431,6 +452,15 @@ async def stream_chat(req: StreamChatRequest, request: Request):
     if not agent:
         raise HTTPException(status_code=400, detail=f"Unknown agent: {req.agent}")
 
+    # Scope memory to project when project_id is provided
+    if req.project_id:
+        try:
+            agent.project_memory = AgentMemory(agent_id=req.agent, project_id=req.project_id)
+        except Exception:
+            agent.project_memory = None
+    else:
+        agent.project_memory = None
+
     async def event_generator():
         # Send start event
         yield f"event: start\ndata: {json.dumps({'agent': req.agent})}\n\n"
@@ -438,7 +468,8 @@ async def stream_chat(req: StreamChatRequest, request: Request):
         full_text = ""
         try:
             # Build system prompt with memory context
-            system = agent.system_prompt(req.task_context)
+            task_ctx = req.task_context or req.project_id or ""
+            system = agent.system_prompt(task_ctx)
 
             # Append user message to persistent conversation history
             agent._conversation.append({"role": "user", "content": req.message})
@@ -468,10 +499,11 @@ async def stream_chat(req: StreamChatRequest, request: Request):
             # Store assistant response in conversation history
             agent._conversation.append({"role": "assistant", "content": full_text})
 
-            # Store in memory if available
-            if agent.memory and full_text:
+            # Store in memory: prefer project_memory when set, else global memory
+            target_memory = agent.project_memory or agent.memory
+            if target_memory and full_text:
                 try:
-                    agent.memory.add_conversation(agent._conversation[-2:])
+                    target_memory.add_conversation(agent._conversation[-2:])
                 except Exception:
                     logger.debug("Memory storage failed for %s", req.agent)
 
@@ -497,6 +529,20 @@ async def stream_chat(req: StreamChatRequest, request: Request):
 class StreamTaskRequest(BaseModel):
     task: str
     use_memory: bool = True
+    project_id: str | None = None
+    token_budget: int = 50
+
+
+@router.post("/orchestrator/stop")
+def stop_orchestrator(request: Request) -> dict[str, str]:
+    """Signal the currently running orchestrator to stop after the current subtask batch."""
+    from src.orchestrator.run_state import stop_run
+
+    run_id = getattr(request.app.state, "current_run_id", None)
+    if run_id:
+        stopped = stop_run(run_id)
+        return {"status": "stop_requested" if stopped else "run_not_found", "run_id": run_id}
+    return {"status": "no_active_run"}
 
 
 @router.post("/orchestrator/stream")
@@ -509,22 +555,36 @@ async def stream_orchestrator(req: StreamTaskRequest, request: Request):
       event: done      data: {"plan":"...","final_output":"...","subtask_count":N,"token_summary":{...}}
       event: error     data: {"detail":"..."}
     """
+    from src.orchestrator.run_state import start_run, end_run
+
     tracker: TokenTracker = request.app.state.tracker
 
     if tracker.is_over_budget:
         raise HTTPException(status_code=429, detail="Daily call limit exhausted")
 
+    run_id, stop_event = start_run()
+    request.app.state.current_run_id = run_id
+    calls_at_start = tracker.global_summary().get("total_calls", 0)
+
     async def event_generator():
-        yield f"event: phase\ndata: {json.dumps({'phase': 'starting', 'detail': 'Submitting task to orchestrator'})}\n\n"
+        yield f"event: phase\ndata: {json.dumps({'phase': 'starting', 'run_id': run_id, 'detail': 'Athena is preparing the task...'})}\n\n"
 
         try:
             # Run the task in a thread since it's synchronous
             loop = asyncio.get_event_loop()
-            yield f"event: phase\ndata: {json.dumps({'phase': 'planning', 'detail': 'Manager is decomposing the task...'})}\n\n"
+            yield f"event: phase\ndata: {json.dumps({'phase': 'planning', 'detail': 'Athena is decomposing the task...'})}\n\n"
 
             result = await loop.run_in_executor(
                 None,
-                lambda: run_task(req.task, tracker=tracker, use_memory=req.use_memory),
+                lambda: run_task(
+                    req.task,
+                    tracker=tracker,
+                    use_memory=req.use_memory,
+                    project_id=req.project_id,
+                    stop_event=stop_event,
+                    token_budget=req.token_budget,
+                    calls_at_start=calls_at_start,
+                ),
             )
 
             plan = result.get("plan", "")
@@ -545,6 +605,10 @@ async def stream_orchestrator(req: StreamTaskRequest, request: Request):
         except Exception as e:
             logger.exception("Stream orchestrator error")
             yield f"event: error\ndata: {json.dumps({'detail': str(e)})}\n\n"
+        finally:
+            end_run(run_id)
+            if getattr(request.app.state, "current_run_id", None) == run_id:
+                request.app.state.current_run_id = None
 
     return StreamingResponse(
         event_generator(),

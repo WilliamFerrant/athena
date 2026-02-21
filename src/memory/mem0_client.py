@@ -38,11 +38,15 @@ class AgentMemory:
     def __init__(
         self,
         agent_id: str,
+        project_id: str | None = None,
         api_key: str | None = None,
         window: int = DEFAULT_WINDOW,
         graph: KnowledgeGraph | None = None,
     ) -> None:
         self.agent_id = agent_id
+        self.project_id = project_id
+        # Namespace: "agent_id:project_id" when project-scoped, else just "agent_id"
+        self._mem0_user_id = f"{agent_id}:{project_id}" if project_id else agent_id
         self.window = window
         self._client = MemoryClient(api_key=api_key or settings.mem0_api_key)
         self._graph = graph
@@ -53,7 +57,7 @@ class AgentMemory:
         """Store a memory. Automatically prunes if over window."""
         result = self._client.add(
             content,
-            user_id=self.agent_id,
+            user_id=self._mem0_user_id,
             metadata=metadata or {},
         )
         self._maybe_prune()
@@ -82,7 +86,7 @@ class AgentMemory:
         """Extract and store memories from a conversation."""
         return self._client.add(
             messages,
-            user_id=self.agent_id,
+            user_id=self._mem0_user_id,
         )
 
     # -- read ------------------------------------------------------------------
@@ -93,11 +97,11 @@ class AgentMemory:
             results = self._client.search(
                 query,
                 version="v2",
-                filters={"OR": [{"user_id": self.agent_id}]},
+                filters={"OR": [{"user_id": self._mem0_user_id}]},
                 limit=limit,
             )
         except Exception as e:
-            logger.warning("Memory search failed for %s: %s", self.agent_id, e)
+            logger.warning("Memory search failed for %s: %s", self._mem0_user_id, e)
             return []
         if isinstance(results, dict):
             return results.get("results", results.get("memories", []))
@@ -108,10 +112,10 @@ class AgentMemory:
         try:
             results = self._client.get_all(
                 version="v2",
-                filters={"AND": [{"user_id": self.agent_id}]},
+                filters={"AND": [{"user_id": self._mem0_user_id}]},
             )
         except Exception as e:
-            logger.warning("Memory get_all failed for %s: %s", self.agent_id, e)
+            logger.warning("Memory get_all failed for %s: %s", self._mem0_user_id, e)
             return []
         if isinstance(results, dict):
             return results.get("results", results.get("memories", []))
@@ -156,15 +160,17 @@ class AgentMemory:
                     logger.warning("Failed to prune memory %s", mem_id)
 
     def clear(self) -> None:
-        """Delete all memories for this agent."""
+        """Delete all memories for this agent (in this project scope)."""
         try:
-            self._client.delete_all(user_id=self.agent_id)
+            self._client.delete_all(user_id=self._mem0_user_id)
         except Exception as e:
-            logger.warning("Memory clear failed for %s: %s", self.agent_id, e)
+            logger.warning("Memory clear failed for %s: %s", self._mem0_user_id, e)
 
     def stats(self) -> dict[str, Any]:
         base: dict[str, Any] = {
             "agent_id": self.agent_id,
+            "project_id": self.project_id,
+            "mem0_user_id": self._mem0_user_id,
             "memory_count": len(self.get_all()),
             "window": self.window,
         }

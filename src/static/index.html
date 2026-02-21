@@ -1141,6 +1141,9 @@ async function pollNexusData() {
 let projects = [];
 let focusedId = null;
 let focusedProject = null;
+// Per-project chat history: { projectId: HTML string of chat messages }
+const chatHistory = {};
+let currentChatProjectId = null;
 let runnerOnline = false;
 let runnerState = {};
 let devStates = {};
@@ -1322,8 +1325,14 @@ async function runHealthCheck(projectId){
 
 // ═══ FOCUS PROJECT ═════════════════════════════════════════════════════════
 async function focusProject(id){
+  // Save current chat history before switching project
+  const prevPid = currentChatProjectId || '__global__';
+  const chatContainer = document.getElementById('chatMessages');
+  if(chatContainer) chatHistory[prevPid] = chatContainer.innerHTML;
+
   focusedId=id;
   focusedProject=projects.find(p=>p.id===id)||null;
+  currentChatProjectId = id || null;
   devUrl=null;
   renderProjectList();
   renderHealthList();
@@ -1337,6 +1346,34 @@ async function focusProject(id){
   document.getElementById('bbFocused').textContent=focusedProject?focusedProject.name:'—';
   addActivity('📂', `Focused: ${focusedProject?focusedProject.name:id}`);
   if(window.LD) LD.setFocusedProject(focusedProject?focusedProject.name:id);
+
+  // Restore chat history for the newly focused project
+  const newPid = id || '__global__';
+  if(chatContainer){
+    if(chatHistory[newPid] !== undefined){
+      chatContainer.innerHTML = chatHistory[newPid];
+    } else {
+      // Load from server on first visit
+      try{
+        const resp = await fetch(`${API}/tasks/chat/${encodeURIComponent(id||'global')}`);
+        if(resp.ok){
+          const data = await resp.json();
+          chatContainer.innerHTML = '';
+          for(const msg of (data.messages||[])){
+            const t = new Date(msg.created_at*1000).toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit'});
+            const cls = msg.role==='user'?'user':'assistant';
+            chatContainer.innerHTML += `<div class="msg ${cls}">${esc(msg.content)}<div class="msg-time">${t}</div></div>`;
+          }
+          chatHistory[newPid] = chatContainer.innerHTML;
+        }
+      }catch(_){}
+    }
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+  }
+
+  // Default to Athena (manager) when switching projects
+  const agentSel = document.getElementById('agentSelect');
+  if(agentSel && id) agentSel.value = 'manager';
 }
 
 async function refreshFocused(){
@@ -1659,7 +1696,11 @@ function closeAllCommitWindows(){
 }
 
 // ═══ CHAT ═══════════════════════════════════════════════════════════════
-function clearChat(){ document.getElementById('chatMessages').innerHTML=''; }
+function clearChat(){
+  document.getElementById('chatMessages').innerHTML='';
+  const pid = currentChatProjectId || '__global__';
+  delete chatHistory[pid];
+}
 
 async function sendChat(){
   const input=document.getElementById('chatInput');
@@ -1675,12 +1716,16 @@ async function sendChat(){
   container.scrollTop=container.scrollHeight;
 
   const ctx=focusedProject?`Project: ${focusedProject.name}`:'';
+  const pid=focusedId||null;
+
+  // Persist user message to server
+  if(pid) fetch(`${API}/tasks/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_id:pid,agent_id:agent,role:'user',content:message})}).catch(()=>{});
 
   try{
     const response = await fetch(`${API}/chat/stream`,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({agent,message,task_context:ctx})
+      body:JSON.stringify({agent,message,task_context:ctx,project_id:pid})
     });
 
     if(!response.ok){
@@ -1732,6 +1777,8 @@ async function sendChat(){
                 pending.innerHTML = `${esc(fullText)}<div class="msg-time">${rt}</div>`;
                 pending.classList.remove('streaming');
               }
+              // Persist assistant response to server
+              if(pid && fullText) fetch(`${API}/tasks/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_id:pid,agent_id:agent,role:'assistant',content:fullText})}).catch(()=>{});
             } else if(eventType === 'error'){
               const detail = parsed.detail || 'Unknown error';
               if(detail.toLowerCase().includes('injection') || detail.toLowerCase().includes('blocked')){
@@ -1759,8 +1806,9 @@ async function sendChat(){
 }
 
 async function sendChatSync(message, agent, ctx, pendingId){
+  const pid=focusedId||null;
   try{
-    const r=await fetch(`${API}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent,message,task_context:ctx})});
+    const r=await fetch(`${API}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent,message,task_context:ctx,project_id:pid})});
     const pending=document.getElementById(pendingId);
     if(!r.ok){
       const err=await r.json();
@@ -1774,6 +1822,8 @@ async function sendChatSync(message, agent, ctx, pendingId){
     const data=await r.json();
     const rt=new Date().toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit'});
     if(pending){pending.innerHTML=`${esc(data.response)}<div class="msg-time">${rt}</div>`;pending.classList.remove('streaming');}
+    // Persist assistant response to server
+    if(pid && data.response) fetch(`${API}/tasks/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_id:pid,agent_id:agent,role:'assistant',content:data.response})}).catch(()=>{});
     document.getElementById('chatMessages').scrollTop=document.getElementById('chatMessages').scrollHeight;
   }catch(e){
     const p=document.getElementById(pendingId);

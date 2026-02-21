@@ -120,7 +120,7 @@ class Personality:
     @classmethod
     def for_manager(cls) -> Personality:
         return cls(
-            name="Project Manager",
+            name="Athena",
             traits={
                 Trait.COLLABORATIVE: 0.9,
                 Trait.PRAGMATIC: 0.85,

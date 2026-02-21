@@ -35,13 +35,15 @@ class BaseAgent:
         agent_id: str,
         tracker: TokenTracker,
         memory: AgentMemory | None = None,
+        project_memory: AgentMemory | None = None,
         personality: Personality | None = None,
         drive_system: DriveSystem | None = None,
         llm_backend: Any | None = None,
     ) -> None:
         self.agent_id = agent_id
         self.tracker = tracker
-        self.memory = memory
+        self.memory = memory            # global / user-profile memory (no project scope)
+        self.project_memory = project_memory  # per-project memory (project-scoped)
         self.personality = personality or Personality()
         self.drives = drive_system or DriveSystem()
         self._conversation: list[dict[str, Any]] = []
@@ -70,11 +72,18 @@ class BaseAgent:
         if drive_text:
             parts.append(drive_text)
 
-        # Memory context
-        if self.memory and task_context:
-            mem_ctx = self.memory.get_relevant_context(task_context)
+        # Memory context: project_memory takes precedence for task context
+        active_memory = self.project_memory or self.memory
+        if active_memory and task_context:
+            mem_ctx = active_memory.get_relevant_context(task_context)
             if mem_ctx:
                 parts.append(mem_ctx)
+
+        # For Athena (manager): also inject global user-profile memory when in a project context
+        if self.project_memory and self.memory and task_context:
+            global_ctx = self.memory.get_relevant_context(task_context, limit=3)
+            if global_ctx:
+                parts.append("Global user context:\n" + global_ctx)
 
         return "\n\n".join(parts)
 
@@ -120,10 +129,11 @@ class BaseAgent:
 
         self._conversation.append({"role": "assistant", "content": assistant_text})
 
-        # Store in memory if available
-        if self.memory and assistant_text:
+        # Store in memory: prefer project_memory when set, else global memory
+        target_memory = self.project_memory or self.memory
+        if target_memory and assistant_text:
             try:
-                self.memory.add_conversation(self._conversation[-2:])
+                target_memory.add_conversation(self._conversation[-2:])
             except Exception:
                 logger.debug("Memory storage failed for %s", self.agent_id)
 
@@ -157,9 +167,10 @@ class BaseAgent:
 
         self._conversation.append({"role": "assistant", "content": assistant_text})
 
-        if self.memory and assistant_text:
+        target_memory = self.project_memory or self.memory
+        if target_memory and assistant_text:
             try:
-                self.memory.add_conversation(self._conversation[-2:])
+                target_memory.add_conversation(self._conversation[-2:])
             except Exception:
                 logger.debug("Memory storage failed for %s", self.agent_id)
 

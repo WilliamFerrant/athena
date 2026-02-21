@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pydantic import BaseModel
 
 from src.tasks.store import COLUMNS, Task, TaskStore
@@ -148,3 +148,92 @@ def task_stats(project_id: str | None = None, request: Request = None) -> dict[s
     """Get task board statistics."""
     store = _get_store(request)
     return store.stats(project_id)
+
+
+# ── Chat history endpoints ────────────────────────────────────────────────
+
+class ChatMessageBody(BaseModel):
+    project_id: str | None = None
+    agent_id: str
+    role: str
+    content: str
+
+
+@task_router.get("/chat/{project_id}")
+def get_project_chat(project_id: str, limit: int = 100, request: Request = None) -> dict[str, Any]:
+    """Get chat history for a project."""
+    store = _get_store(request)
+    # Treat the literal string "null" or "global" as no project (global chat)
+    pid = None if project_id in ("null", "global") else project_id
+    messages = store.get_chat_history(pid, limit=limit)
+    return {"project_id": pid, "messages": messages}
+
+
+@task_router.post("/chat")
+def save_chat_message(body: ChatMessageBody, request: Request) -> dict[str, str]:
+    """Persist a chat message for a project."""
+    store = _get_store(request)
+    store.add_chat_message(
+        project_id=body.project_id,
+        agent_id=body.agent_id,
+        role=body.role,
+        content=body.content,
+    )
+    return {"status": "saved"}
+
+
+# ── Autopilot endpoint ────────────────────────────────────────────────────
+
+@task_router.post("/{task_id}/run")
+def run_task_autopilot(
+    task_id: str,
+    background_tasks: BackgroundTasks,
+    request: Request,
+) -> dict[str, Any]:
+    """Trigger the orchestrator for an autopilot task.
+
+    Moves task: backlog/planned → in-progress → review (after run) → done (if Athena approves).
+    Returns immediately; the orchestrator runs in the background.
+    """
+    from src.orchestrator.graph import run_task as _run_task
+    from src.token_tracker.tracker import TokenTracker
+
+    store = _get_store(request)
+    task = store.get(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if not task.autopilot:
+        raise HTTPException(status_code=400, detail="Task does not have autopilot enabled")
+
+    tracker: TokenTracker = request.app.state.tracker
+    if tracker.is_over_budget:
+        raise HTTPException(status_code=429, detail="Daily call limit exhausted")
+
+    # Move to in-progress immediately
+    store.move(task_id, "in-progress")
+
+    def _bg_run() -> None:
+        try:
+            result = _run_task(
+                task.description or task.title,
+                tracker=tracker,
+                use_memory=True,
+                project_id=task.project_id,
+            )
+            final_output = result.get("final_output", "")
+            store.update(task_id, result=final_output, column="review")
+
+            # Athena reviews the result
+            agents = getattr(request.app.state, "agents", {})
+            manager = agents.get("manager")
+            if manager:
+                review = manager.review_output(task.description or task.title, final_output)
+                if review.get("verdict") == "approve":
+                    store.move(task_id, "done")
+                # revise/redo leaves task in "review" for human inspection
+        except Exception as exc:
+            logger.error("Autopilot run failed for task %s: %s", task_id, exc)
+            store.update(task_id, result=f"Autopilot error: {exc}", column="review")
+
+    background_tasks.add_task(_bg_run)
+    return {"status": "running", "task_id": task_id, "message": "Autopilot started — task moved to in-progress"}

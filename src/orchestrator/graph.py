@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
@@ -33,38 +34,46 @@ logger = logging.getLogger(__name__)
 _MAX_PARALLEL_WORKERS = 4
 
 
-def _create_agents(tracker: TokenTracker, use_memory: bool = True) -> dict[str, Any]:
-    """Initialize the agent pool."""
+def _create_agents(
+    tracker: TokenTracker,
+    use_memory: bool = True,
+    project_id: str | None = None,
+) -> dict[str, Any]:
+    """Initialize the agent pool with optional per-project memory isolation."""
 
-    def _maybe_memory(agent_id: str) -> AgentMemory | None:
+    def _maybe_memory(agent_id: str, project_scoped: bool = True) -> AgentMemory | None:
         if not use_memory:
             return None
+        pid = project_id if project_scoped else None
         try:
-            return AgentMemory(agent_id=agent_id)
+            return AgentMemory(agent_id=agent_id, project_id=pid)
         except Exception:
             logger.warning("Memory unavailable for %s, continuing without", agent_id)
             return None
 
+    # Athena (manager) gets both global memory (user profile) and per-project memory.
+    # Sub-agents get only per-project memory (no cross-project leakage).
     return {
         "manager": ManagerAgent(
             agent_id="manager",
             tracker=tracker,
-            memory=_maybe_memory("manager"),
+            memory=_maybe_memory("manager", project_scoped=False),
+            project_memory=_maybe_memory("manager", project_scoped=True) if project_id else None,
         ),
         "frontend": FrontendAgent(
             agent_id="frontend",
             tracker=tracker,
-            memory=_maybe_memory("frontend"),
+            project_memory=_maybe_memory("frontend"),
         ),
         "backend": BackendAgent(
             agent_id="backend",
             tracker=tracker,
-            memory=_maybe_memory("backend"),
+            project_memory=_maybe_memory("backend"),
         ),
         "tester": TesterAgent(
             agent_id="tester",
             tracker=tracker,
-            memory=_maybe_memory("tester"),
+            project_memory=_maybe_memory("tester"),
         ),
     }
 
@@ -107,6 +116,8 @@ def _execute_parallel_sync(
     ready_queue: list[str],
     results: dict[str, SubtaskResult],
     agents: dict[str, Any],
+    stop_event: threading.Event | None = None,
+    token_budget_remaining: int | None = None,
 ) -> dict[str, SubtaskResult]:
     """Run all ready subtasks in parallel using a ThreadPoolExecutor.
 
@@ -114,6 +125,15 @@ def _execute_parallel_sync(
     and from ``asyncio.run`` when no event loop is running.
     """
     if not ready_queue:
+        return results
+
+    # Check stop conditions before starting any work
+    if stop_event and stop_event.is_set():
+        logger.info("Orchestrator stop requested — skipping subtask batch")
+        return results
+
+    if token_budget_remaining is not None and token_budget_remaining <= 0:
+        logger.info("Orchestrator token budget exhausted — skipping subtask batch")
         return results
 
     n_workers = min(_MAX_PARALLEL_WORKERS, len(ready_queue))
@@ -211,13 +231,20 @@ def planning_node(state: dict, agents: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def executing_node(state: dict, agents: dict[str, Any]) -> dict[str, Any]:
+def executing_node(
+    state: dict,
+    agents: dict[str, Any],
+    stop_event: threading.Event | None = None,
+    budget_fn: Any = None,
+) -> dict[str, Any]:
     """Execute all ready subtasks in parallel via ThreadPoolExecutor."""
     results = dict(state["results"])
     ready_queue: list[str] = state["ready_queue"]
 
     if not ready_queue:
         return {"phase": "reviewing", "results": results, "ready_queue": []}
+
+    budget_remaining = budget_fn() if budget_fn else None
 
     logger.info(
         "Executing %d subtask(s) in parallel: %s",
@@ -226,7 +253,13 @@ def executing_node(state: dict, agents: dict[str, Any]) -> dict[str, Any]:
     )
 
     # Use sync parallel execution (works both in and outside an event loop)
-    results = _execute_parallel_sync(ready_queue, results, agents)
+    results = _execute_parallel_sync(
+        ready_queue,
+        results,
+        agents,
+        stop_event=stop_event,
+        token_budget_remaining=budget_remaining,
+    )
 
     return {"phase": "reviewing", "results": results, "ready_queue": []}
 
@@ -336,17 +369,30 @@ def route_after_review(state: dict) -> str:
 def build_graph(
     tracker: TokenTracker | None = None,
     use_memory: bool = True,
+    project_id: str | None = None,
+    stop_event: threading.Event | None = None,
+    token_budget: int | None = None,
+    calls_at_start: int = 0,
 ) -> StateGraph:
     """Build the LangGraph state graph for the multi-agent workflow."""
     tracker = tracker or TokenTracker()
-    agents = _create_agents(tracker, use_memory=use_memory)
+    agents = _create_agents(tracker, use_memory=use_memory, project_id=project_id)
 
     graph = StateGraph(WorkflowState)
 
-    # Add nodes (bind agents via closures)
+    def _budget_remaining() -> int | None:
+        if token_budget is None:
+            return None
+        used = tracker.global_summary().get("total_calls", 0) - calls_at_start
+        return token_budget - used
+
+    # Add nodes (bind agents and stop controls via closures)
     graph.add_node("intake", intake_node)
     graph.add_node("plan", lambda s: planning_node(s, agents))
-    graph.add_node("execute", lambda s: executing_node(s, agents))
+    graph.add_node(
+        "execute",
+        lambda s: executing_node(s, agents, stop_event=stop_event, budget_fn=_budget_remaining),
+    )
     graph.add_node("review", lambda s: reviewing_node(s, agents))
     graph.add_node("synthesize", lambda s: synthesizing_node(s, agents))
 
@@ -379,9 +425,24 @@ def _initial_state(task: str) -> dict[str, Any]:
     }
 
 
-def run_task(task: str, tracker: TokenTracker | None = None, use_memory: bool = True) -> dict:
+def run_task(
+    task: str,
+    tracker: TokenTracker | None = None,
+    use_memory: bool = True,
+    project_id: str | None = None,
+    stop_event: threading.Event | None = None,
+    token_budget: int | None = None,
+    calls_at_start: int = 0,
+) -> dict:
     """Convenience function: build graph and run a task through it (sync)."""
-    graph = build_graph(tracker=tracker, use_memory=use_memory)
+    graph = build_graph(
+        tracker=tracker,
+        use_memory=use_memory,
+        project_id=project_id,
+        stop_event=stop_event,
+        token_budget=token_budget,
+        calls_at_start=calls_at_start,
+    )
     app = graph.compile()
     return app.invoke(_initial_state(task))
 
@@ -390,8 +451,19 @@ async def arun_task(
     task: str,
     tracker: TokenTracker | None = None,
     use_memory: bool = True,
+    project_id: str | None = None,
+    stop_event: threading.Event | None = None,
+    token_budget: int | None = None,
+    calls_at_start: int = 0,
 ) -> dict:
     """Async convenience function — uses ainvoke for native async execution."""
-    graph = build_graph(tracker=tracker, use_memory=use_memory)
+    graph = build_graph(
+        tracker=tracker,
+        use_memory=use_memory,
+        project_id=project_id,
+        stop_event=stop_event,
+        token_budget=token_budget,
+        calls_at_start=calls_at_start,
+    )
     app = graph.compile()
     return await app.ainvoke(_initial_state(task))

@@ -109,6 +109,20 @@ class TaskStore:
                 CREATE INDEX IF NOT EXISTS idx_tasks_project
                 ON tasks (project_id)
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS chat_history (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    project_id  TEXT,
+                    agent_id    TEXT NOT NULL,
+                    role        TEXT NOT NULL,
+                    content     TEXT NOT NULL,
+                    created_at  REAL NOT NULL
+                )
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_chat_project
+                ON chat_history (project_id, created_at)
+            """)
 
     # ── CRUD ──────────────────────────────────────────────────────────────
 
@@ -226,6 +240,44 @@ class TaskStore:
             "by_column": by_col,
             "autopilot_count": sum(1 for t in tasks if t.autopilot),
         }
+
+    # ── Chat history ──────────────────────────────────────────────────────
+
+    def add_chat_message(
+        self,
+        project_id: str | None,
+        agent_id: str,
+        role: str,
+        content: str,
+    ) -> None:
+        """Persist a chat message to the history table."""
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO chat_history (project_id, agent_id, role, content, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (project_id, agent_id, role, content, time.time()),
+            )
+
+    def get_chat_history(
+        self,
+        project_id: str | None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Retrieve recent chat messages for a project (or global if project_id is None)."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, project_id, agent_id, role, content, created_at
+                FROM chat_history
+                WHERE project_id IS ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (project_id, limit),
+            ).fetchall()
+        return [dict(r) for r in reversed(rows)]
 
     def close(self) -> None:
         """No-op — connections are created per-call."""
