@@ -1696,6 +1696,53 @@ function closeAllCommitWindows(){
   Object.entries(windows).forEach(([id,w])=>{ if(w.type==='commit') closeWindow(Number(id)); });
 }
 
+// ═══ EXECUTION ══════════════════════════════════════════════════════
+async function executePlan(planId, projectId, btn){
+  // Disable button, show progress
+  if(btn){
+    btn.disabled = true;
+    btn.textContent = '⏳ Exécution en cours...';
+    btn.style.opacity = '0.6';
+  }
+  const container = document.getElementById('chatMessages');
+  const execMsgId = 'exec-'+Date.now();
+  container.innerHTML += `<div class="msg assistant" id="${execMsgId}" style="border-left:3px solid var(--yellow);padding-left:8px"><span style="color:var(--yellow)">⚡</span> Exécution du plan en cours...</div>`;
+  container.scrollTop = container.scrollHeight;
+
+  try{
+    const r = await fetch(`${API}/execute`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({plan_id: planId, project_id: projectId})
+    });
+    const data = await r.json();
+    const el = document.getElementById(execMsgId);
+    if(!r.ok){
+      if(el) el.innerHTML = `<span style="color:var(--red)">❌ ${esc(data.detail||'Execution failed')}</span>`;
+      return;
+    }
+    if(data.success){
+      let html = `<span style="color:var(--green)">✅ Exécution terminée !</span><br>`;
+      if(data.branch) html += `Branche: <code>${esc(data.branch)}</code><br>`;
+      if(data.pr_url) html += `PR: <a href="${esc(data.pr_url)}" target="_blank">${esc(data.pr_url)}</a><br>`;
+      if(data.duration_ms) html += `Durée: ${data.duration_ms}ms`;
+      if(el){ el.style.borderColor = 'var(--green)'; el.innerHTML = html; }
+    } else {
+      let html = `<span style="color:var(--red)">❌ Exécution échouée</span><br>`;
+      if(data.error) html += `${esc(data.error)}<br>`;
+      if(data.branch) html += `Branche: <code>${esc(data.branch)}</code>`;
+      if(el){ el.style.borderColor = 'var(--red)'; el.innerHTML = html; }
+    }
+    // Remove the approval buttons
+    if(btn) btn.closest('.plan-approval')?.remove();
+    // Refresh dev state
+    if(focusedId) loadDevState(focusedId);
+  }catch(e){
+    const el = document.getElementById(execMsgId);
+    if(el) el.innerHTML = `<span style="color:var(--red)">❌ ${esc(e.message)}</span>`;
+  }
+}
+
 // ═══ CHAT ═══════════════════════════════════════════════════════════════
 function clearChat(){
   document.getElementById('chatMessages').innerHTML='';
@@ -1780,35 +1827,24 @@ async function sendChat(){
               }
               // Persist assistant response to server
               if(pid && fullText) fetch(`${API}/tasks/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_id:pid,agent_id:agent,role:'assistant',content:fullText})}).catch(()=>{});
-            } else if(eventType === 'executing'){
-              // Plan detected — show execution status
-              const detail = parsed.detail || 'Executing plan...';
-              const execId = 'exec-'+Date.now();
-              container.innerHTML += `<div class="msg assistant exec-status" id="${execId}" style="border-left:3px solid var(--yellow);padding-left:8px;opacity:0.9"><span style="color:var(--yellow)">⚡</span> ${esc(detail)}</div>`;
-              container.scrollTop = container.scrollHeight;
-            } else if(eventType === 'executed'){
-              // Execution result
-              const success = parsed.success;
-              const execResultId = 'execr-'+Date.now();
-              let html = '';
-              if(success){
-                html = `<div class="msg assistant exec-result" id="${execResultId}" style="border-left:3px solid var(--green);padding-left:8px">`;
-                html += `<span style="color:var(--green)">✅ Execution complete!</span><br>`;
-                if(parsed.branch) html += `Branch: <code>${esc(parsed.branch)}</code><br>`;
-                if(parsed.pr_url) html += `PR: <a href="${esc(parsed.pr_url)}" target="_blank">${esc(parsed.pr_url)}</a><br>`;
-                if(parsed.duration_ms) html += `Duration: ${parsed.duration_ms}ms`;
-                html += `</div>`;
+            } else if(eventType === 'plan_ready'){
+              // Plan detected — show approval UI with Execute button
+              const planId = parsed.plan_id;
+              const projectId = parsed.project_id || 'ai-companion';
+              const nSubs = (parsed.subtasks||[]).length;
+              const runnerOnline = parsed.runner_online;
+              const planBtnId = 'plan-btn-'+Date.now();
+              let html = `<div class="msg assistant plan-approval" style="border-left:3px solid var(--cyan);padding-left:10px;margin-top:6px">`;
+              html += `<div style="margin-bottom:6px"><span style="color:var(--cyan)">📋</span> <strong>Plan prêt</strong> — ${nSubs} sous-tâche${nSubs>1?'s':''}, projet: <code>${esc(projectId)}</code></div>`;
+              if(runnerOnline){
+                html += `<button id="${planBtnId}" onclick="executePlan('${planId}','${esc(projectId)}',this)" style="background:var(--green);color:#000;border:none;padding:6px 16px;border-radius:4px;cursor:pointer;font-weight:600;margin-right:8px">🚀 Exécuter</button>`;
+                html += `<button onclick="this.parentElement.remove()" style="background:var(--surface);color:var(--muted);border:1px solid var(--border);padding:6px 12px;border-radius:4px;cursor:pointer">✕ Ignorer</button>`;
               } else {
-                html = `<div class="msg assistant exec-result" id="${execResultId}" style="border-left:3px solid var(--red);padding-left:8px">`;
-                html += `<span style="color:var(--red)">❌ Execution failed</span><br>`;
-                if(parsed.error) html += `${esc(parsed.error)}<br>`;
-                if(parsed.branch) html += `Branch: <code>${esc(parsed.branch)}</code>`;
-                html += `</div>`;
+                html += `<span style="color:var(--yellow)">⚠ Runner offline — lance le runner pour exécuter</span>`;
               }
+              html += `</div>`;
               container.innerHTML += html;
               container.scrollTop = container.scrollHeight;
-              // Refresh dev state after execution
-              if(focusedId) loadDevState(focusedId);
             } else if(eventType === 'error'){
               const detail = parsed.detail || 'Unknown error';
               if(detail.toLowerCase().includes('injection') || detail.toLowerCase().includes('blocked')){

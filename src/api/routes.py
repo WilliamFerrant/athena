@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
@@ -18,6 +19,10 @@ from src.token_tracker.tracker import TokenTracker
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Server-side plan cache: plan_id → {plan, subtasks, project_id}
+# Plans expire after 30 minutes
+_pending_plans: dict[str, dict[str, Any]] = {}
 
 
 # -- Request/Response models ---------------------------------------------------
@@ -661,7 +666,7 @@ async def stream_chat(req: StreamChatRequest, request: Request):
             summary = agent.llm_backend.agent_summary(req.agent)
             yield f"event: done\ndata: {json.dumps({'response': full_text, 'agent_id': req.agent, 'token_summary': summary})}\n\n"
 
-            # ── Auto-execution: detect plan → execute via bridge ──
+            # ── Plan detection: send plan_ready event for user approval ──
             bridge = getattr(request.app.state, "execution_bridge", None)
             if bridge and full_text:
                 plan_data = _try_extract_plan(full_text)
@@ -670,27 +675,17 @@ async def stream_chat(req: StreamChatRequest, request: Request):
                     project_id = req.project_id or _detect_project_id(plan_data, registry)
                     subtasks = plan_data["subtasks"]
                     plan_text = plan_data.get("plan", "")
+                    runner_online = bridge.is_runner_online()
 
-                    if bridge.is_runner_online():
-                        yield f"event: executing\ndata: {json.dumps({'phase': 'starting', 'project_id': project_id, 'subtask_count': len(subtasks), 'detail': 'Plan detected — executing via runner...'})}\n\n"
+                    # Cache the plan server-side for later execution
+                    plan_id = f"plan-{int(time.time())}"
+                    _pending_plans[plan_id] = {
+                        "plan": plan_text,
+                        "subtasks": subtasks,
+                        "project_id": project_id,
+                    }
 
-                        try:
-                            loop = asyncio.get_event_loop()
-                            exec_result = await loop.run_in_executor(
-                                None,
-                                lambda: bridge.execute_plan(
-                                    project_id=project_id,
-                                    plan=plan_text,
-                                    subtasks=subtasks,
-                                    requested_by="web",
-                                ),
-                            )
-                            yield f"event: executed\ndata: {json.dumps({'success': exec_result.success, 'branch': exec_result.branch, 'pr_url': exec_result.pr_url, 'error': exec_result.error, 'duration_ms': exec_result.duration_ms, 'subtask_results': exec_result.subtask_results})}\n\n"
-                        except Exception as ex:
-                            logger.exception("Auto-execution failed")
-                            yield f"event: executed\ndata: {json.dumps({'success': False, 'error': str(ex)})}\n\n"
-                    else:
-                        yield f"event: executing\ndata: {json.dumps({'phase': 'skipped', 'detail': 'Runner is offline — plan cached but not executed. Start the runner to enable auto-execution.'})}\n\n"
+                    yield f"event: plan_ready\ndata: {json.dumps({'plan_id': plan_id, 'project_id': project_id, 'plan': plan_text, 'subtasks': subtasks, 'runner_online': runner_online})}\n\n"
 
         except Exception as e:
             logger.exception("Stream chat error")
@@ -898,9 +893,10 @@ def memory_evolution_chain(memory_id: str, request: Request) -> dict[str, Any]:
 
 
 class ExecutePlanRequest(BaseModel):
+    plan_id: str = ""          # Look up a cached plan by ID
     project_id: str = "ai-companion"
-    plan: str
-    subtasks: list[dict[str, Any]]
+    plan: str = ""
+    subtasks: list[dict[str, Any]] = []
     auto_approve: bool = False
 
 
@@ -908,8 +904,9 @@ class ExecutePlanRequest(BaseModel):
 async def execute_plan(body: ExecutePlanRequest, request: Request) -> dict[str, Any]:
     """Execute a plan through the execution bridge (runner → Claude CLI).
 
-    This turns Athena's plans into real code changes: feature branch,
-    Claude CLI edits, tests, git push, and PR creation.
+    Accepts either:
+    - plan_id: look up a previously detected plan from the chat stream
+    - plan + subtasks: provide the plan directly
     """
     bridge = getattr(request.app.state, "execution_bridge", None)
     if not bridge:
@@ -918,13 +915,29 @@ async def execute_plan(body: ExecutePlanRequest, request: Request) -> dict[str, 
     if not bridge.is_runner_online():
         raise HTTPException(status_code=503, detail="Runner is offline — start the runner and SSH tunnel first")
 
+    # Resolve the plan: from cache or from request body
+    project_id = body.project_id
+    plan_text = body.plan
+    subtasks = body.subtasks
+
+    if body.plan_id and body.plan_id in _pending_plans:
+        cached = _pending_plans.pop(body.plan_id)
+        project_id = cached.get("project_id", project_id)
+        plan_text = cached.get("plan", plan_text)
+        subtasks = cached.get("subtasks", subtasks)
+    elif body.plan_id:
+        raise HTTPException(status_code=404, detail=f"Plan '{body.plan_id}' not found or expired")
+
+    if not subtasks:
+        raise HTTPException(status_code=400, detail="No subtasks to execute")
+
     # Run in a thread to not block the event loop
     result = await asyncio.get_event_loop().run_in_executor(
         None,
         lambda: bridge.execute_plan(
-            project_id=body.project_id,
-            plan=body.plan,
-            subtasks=body.subtasks,
+            project_id=project_id,
+            plan=plan_text,
+            subtasks=subtasks,
             requested_by="web",
             auto_approve=body.auto_approve,
         ),

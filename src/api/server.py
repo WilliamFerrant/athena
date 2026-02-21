@@ -176,8 +176,8 @@ async def lifespan(app: FastAPI):
         Do NOT also send via webhook — that creates a feedback loop
         (bot sees webhook message → treats as new user message → loop).
 
-        If the reply contains a plan with subtasks and the runner is online,
-        automatically execute it via the ExecutionBridge.
+        If the reply contains a plan with subtasks, cache it and tell the
+        user to confirm with `!execute`. Never auto-execute.
         """
         try:
             manager = app.state.agents.get("manager")
@@ -187,43 +187,16 @@ async def lifespan(app: FastAPI):
                     # Check if reply contains a plan with subtasks
                     _try_cache_plan(channel_id, reply)
 
-                    # Auto-execute if plan detected and runner is online
+                    # If a plan was detected, append approval prompt
                     cached = _last_plans.get(channel_id)
-                    if cached and execution_bridge.is_runner_online():
-                        project_id = cached.get("project_id", "ai-companion")
-                        subtasks = cached["subtasks"]
-                        plan = cached["plan"]
-
-                        # Execute in background, report result via webhook
-                        import threading
-                        def _bg_auto_execute():
-                            result = execution_bridge.execute_plan(
-                                project_id=project_id,
-                                plan=plan,
-                                subtasks=subtasks,
-                                requested_by="discord",
-                            )
-                            if result.success:
-                                msg = (
-                                    f"✅ **Exécution terminée !**\n"
-                                    f"Projet: `{project_id}`\n"
-                                    f"Branche: `{result.branch}`\n"
-                                )
-                                if result.pr_url:
-                                    msg += f"PR: {result.pr_url}\n"
-                                msg += f"Durée: {result.duration_ms}ms"
-                            else:
-                                msg = (
-                                    f"❌ **Exécution échouée**\n"
-                                    f"Projet: `{project_id}`\n"
-                                    f"Erreur: {result.error}"
-                                )
-                            discord_notifier.send_sync(msg)
-                            # Clear cache after execution
-                            _last_plans.pop(channel_id, None)
-
-                        threading.Thread(target=_bg_auto_execute, daemon=True).start()
-                        return reply + "\n\n🚀 *Plan détecté — exécution en cours...*"
+                    if cached:
+                        n = len(cached["subtasks"])
+                        pid = cached.get("project_id", "ai-companion")
+                        reply += (
+                            f"\n\n📋 **Plan prêt** ({n} sous-tâches, projet: `{pid}`)\n"
+                            f"→ Tape `!execute` pour lancer l'exécution\n"
+                            f"→ Ou demande-moi de modifier le plan d'abord"
+                        )
 
                     return reply
                 else:
