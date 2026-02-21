@@ -1706,7 +1706,7 @@ async function executePlan(planId, projectId, btn){
   }
   const container = document.getElementById('chatMessages');
   const execMsgId = 'exec-'+Date.now();
-  container.innerHTML += `<div class="msg assistant" id="${execMsgId}" style="border-left:3px solid var(--yellow);padding-left:8px"><span style="color:var(--yellow)">⚡</span> Exécution du plan en cours...</div>`;
+  container.innerHTML += `<div class="msg assistant" id="${execMsgId}" style="border-left:3px solid var(--yellow);padding-left:8px"><span style="color:var(--yellow)">⚡</span> Démarrage de l'exécution...</div>`;
   container.scrollTop = container.scrollHeight;
 
   try{
@@ -1715,23 +1715,73 @@ async function executePlan(planId, projectId, btn){
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({plan_id: planId, project_id: projectId})
     });
-    const data = await r.json();
-    const el = document.getElementById(execMsgId);
+
     if(!r.ok){
+      const data = await r.json();
+      const el = document.getElementById(execMsgId);
       if(el) el.innerHTML = `<span style="color:var(--red)">❌ ${esc(data.detail||'Execution failed')}</span>`;
       return;
     }
-    if(data.success){
-      let html = `<span style="color:var(--green)">✅ Exécution terminée !</span><br>`;
-      if(data.branch) html += `Branche: <code>${esc(data.branch)}</code><br>`;
-      if(data.pr_url) html += `PR: <a href="${esc(data.pr_url)}" target="_blank">${esc(data.pr_url)}</a><br>`;
-      if(data.duration_ms) html += `Durée: ${data.duration_ms}ms`;
-      if(el){ el.style.borderColor = 'var(--green)'; el.innerHTML = html; }
-    } else {
-      let html = `<span style="color:var(--red)">❌ Exécution échouée</span><br>`;
-      if(data.error) html += `${esc(data.error)}<br>`;
-      if(data.branch) html += `Branche: <code>${esc(data.branch)}</code>`;
-      if(el){ el.style.borderColor = 'var(--red)'; el.innerHTML = html; }
+
+    // SSE stream — read progress events in real time
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalResult = null;
+
+    while(true){
+      const {done, value} = await reader.read();
+      if(done) break;
+      buffer += decoder.decode(value, {stream:true});
+
+      // Parse SSE events from buffer
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      let eventType = '';
+      for(const line of lines){
+        if(line.startsWith('event: ')){
+          eventType = line.slice(7).trim();
+        } else if(line.startsWith('data: ')){
+          const raw = line.slice(6);
+          try{
+            const data = JSON.parse(raw);
+            const el = document.getElementById(execMsgId);
+            if(eventType === 'progress' && el){
+              const phase = data.phase || '';
+              const detail = data.detail || '';
+              const icon = phase === 'subtask' ? '🔧' : phase === 'testing' ? '🧪' : phase === 'pushing' ? '📤' : phase === 'merging' ? '🔀' : phase === 'done' ? '✅' : '⚡';
+              el.innerHTML = `<span style="color:var(--yellow)">${icon}</span> ${esc(detail)}`;
+              container.scrollTop = container.scrollHeight;
+            } else if(eventType === 'done'){
+              finalResult = data;
+            } else if(eventType === 'error' && el){
+              el.style.borderColor = 'var(--red)';
+              el.innerHTML = `<span style="color:var(--red)">❌ ${esc(data.detail||'Execution failed')}</span>`;
+            }
+          }catch(e){}
+          eventType = '';
+        }
+      }
+    }
+
+    // Show final result
+    const el = document.getElementById(execMsgId);
+    if(finalResult && el){
+      if(finalResult.success){
+        let html = `<span style="color:var(--green)">✅ Exécution terminée !</span><br>`;
+        if(finalResult.branch) html += `Branche: <code>${esc(finalResult.branch)}</code><br>`;
+        if(finalResult.pr_url) html += `PR: <a href="${esc(finalResult.pr_url)}" target="_blank">${esc(finalResult.pr_url)}</a><br>`;
+        if(finalResult.duration_ms) html += `Durée: ${Math.round(finalResult.duration_ms/1000)}s`;
+        el.style.borderColor = 'var(--green)';
+        el.innerHTML = html;
+      } else {
+        let html = `<span style="color:var(--red)">❌ Exécution échouée</span><br>`;
+        if(finalResult.error) html += `${esc(finalResult.error)}<br>`;
+        if(finalResult.branch) html += `Branche: <code>${esc(finalResult.branch)}</code>`;
+        el.style.borderColor = 'var(--red)';
+        el.innerHTML = html;
+      }
     }
     // Remove the approval buttons
     if(btn) btn.closest('.plan-approval')?.remove();

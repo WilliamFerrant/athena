@@ -901,8 +901,13 @@ class ExecutePlanRequest(BaseModel):
 
 
 @router.post("/execute")
-async def execute_plan(body: ExecutePlanRequest, request: Request) -> dict[str, Any]:
+async def execute_plan(body: ExecutePlanRequest, request: Request) -> Any:
     """Execute a plan through the execution bridge (runner → Claude CLI).
+
+    Returns SSE stream with real-time progress events:
+      event: progress  data: {"phase":"...", "detail":"..."}
+      event: done       data: {"success":true, "branch":"...", ...}
+      event: error      data: {"detail":"..."}
 
     Accepts either:
     - plan_id: look up a previously detected plan from the chat stream
@@ -931,27 +936,60 @@ async def execute_plan(body: ExecutePlanRequest, request: Request) -> dict[str, 
     if not subtasks:
         raise HTTPException(status_code=400, detail="No subtasks to execute")
 
-    # Run in a thread to not block the event loop
-    result = await asyncio.get_event_loop().run_in_executor(
-        None,
-        lambda: bridge.execute_plan(
-            project_id=project_id,
-            plan=plan_text,
-            subtasks=subtasks,
-            requested_by="web",
-            auto_approve=body.auto_approve,
-        ),
-    )
+    import queue as queue_mod
+    progress_queue: queue_mod.Queue = queue_mod.Queue()
 
-    return {
-        "success": result.success,
-        "project_id": result.project_id,
-        "branch": result.branch,
-        "pr_url": result.pr_url,
-        "error": result.error,
-        "duration_ms": result.duration_ms,
-        "subtask_results": result.subtask_results,
-    }
+    def on_progress(phase: str, detail: str = "") -> None:
+        progress_queue.put({"phase": phase, "detail": detail})
+
+    async def event_generator():
+        # Start execution in a background thread
+        loop = asyncio.get_event_loop()
+        future = loop.run_in_executor(
+            None,
+            lambda: bridge.execute_plan(
+                project_id=project_id,
+                plan=plan_text,
+                subtasks=subtasks,
+                requested_by="web",
+                auto_approve=body.auto_approve,
+                on_progress=on_progress,
+            ),
+        )
+
+        # Stream progress events while execution runs
+        while not future.done():
+            try:
+                msg = progress_queue.get_nowait()
+                yield f"event: progress\ndata: {json.dumps(msg)}\n\n"
+            except queue_mod.Empty:
+                pass
+            await asyncio.sleep(0.5)
+
+        # Drain remaining progress messages
+        while not progress_queue.empty():
+            try:
+                msg = progress_queue.get_nowait()
+                yield f"event: progress\ndata: {json.dumps(msg)}\n\n"
+            except queue_mod.Empty:
+                break
+
+        # Get the result
+        try:
+            result = future.result()
+            yield f"event: done\ndata: {json.dumps({'success': result.success, 'project_id': result.project_id, 'branch': result.branch, 'pr_url': result.pr_url, 'error': result.error, 'duration_ms': result.duration_ms, 'subtask_results': result.subtask_results})}\n\n"
+        except Exception as e:
+            yield f"event: error\ndata: {json.dumps({'detail': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/execute/status")

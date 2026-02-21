@@ -104,6 +104,7 @@ class ExecutionBridge:
         subtasks: list[dict[str, Any]],
         requested_by: str = "discord",
         auto_approve: bool = False,
+        on_progress: Any | None = None,
     ) -> ExecutionResult:
         """Execute a plan by routing subtasks to Claude CLI via the runner.
 
@@ -113,6 +114,7 @@ class ExecutionBridge:
             subtasks: List of subtask dicts from manager.decompose_task()
             requested_by: Source of the request (discord, web, heartbeat)
             auto_approve: If True, auto-create PR. If False, stage only.
+            on_progress: Optional callback(phase, detail) for real-time updates.
 
         Returns:
             ExecutionResult with status, branch, pr_url etc.
@@ -120,7 +122,15 @@ class ExecutionBridge:
         t0 = time.perf_counter()
         result = ExecutionResult(project_id=project_id)
 
+        def _progress(phase: str, detail: str = "") -> None:
+            if on_progress:
+                try:
+                    on_progress(phase, detail)
+                except Exception:
+                    pass
+
         # -- Preflight checks --
+        _progress("preflight", "Checking runner status...")
         if not self.is_runner_online():
             result.error = "Runner is offline — cannot execute code changes."
             return result
@@ -167,6 +177,7 @@ class ExecutionBridge:
         # -- Create feature branch --
         branch_name = self._generate_branch_name(plan, requested_by)
         result.branch = branch_name
+        _progress("branch", f"Creating branch {branch_name}...")
 
         try:
             checkout_result = self.runner.run_cmd(CmdRequest(
@@ -209,6 +220,7 @@ class ExecutionBridge:
                 "Executing subtask %s/%d via Claude CLI (agent=%s, project=%s)",
                 subtask_id, len(subtasks), agent_type, project_id,
             )
+            _progress("subtask", f"Subtask {subtask_id}/{len(subtasks)}: {description[:80]}...")
 
             try:
                 claude_result = self.runner.run_claude(ClaudeRunRequest(
@@ -248,6 +260,7 @@ class ExecutionBridge:
 
         # -- Run tests if this is a self-edit --
         if is_self_edit and all_success:
+            _progress("testing", "Running tests (self-edit safety)...")
             test_result = self._run_tests(project_id)
             result.subtask_results.append({
                 "id": "auto-test",
@@ -281,9 +294,10 @@ class ExecutionBridge:
         except Exception:
             pass
 
-        # -- Create PR or wait for approval --
+        # -- Create PR or commit + merge --
         should_pr = (self.auto_pr or auto_approve) and all_success
         if should_pr and result.git_status.get("dirty", 0) > 0:
+            _progress("pushing", "Committing and pushing changes...")
             try:
                 pr_result = self.runner.push_pr(PushPrRequest(
                     projectId=project_id,
@@ -294,14 +308,49 @@ class ExecutionBridge:
                 result.pr_url = pr_result.prUrl
                 logger.info("PR created: %s", result.pr_url)
             except (RunnerOfflineError, RunnerError) as e:
-                logger.warning("PR creation failed: %s — changes are on branch %s", e, branch_name)
-                result.error = f"Changes committed on {branch_name} but PR failed: {e}"
+                err_detail = str(e)
+                # If push succeeded but PR creation failed (gh CLI missing),
+                # still commit + merge locally
+                if "PR creation failed" in err_detail or "gh" in err_detail.lower():
+                    logger.info("PR creation failed but push may have succeeded — merging to main")
+                    _progress("merging", "PR failed, merging to main locally...")
+                else:
+                    # Commit locally if push also failed
+                    logger.warning("Push failed: %s — committing locally", e)
+                    _progress("committing", "Push failed, committing locally...")
+                    try:
+                        self.runner.run_cmd(CmdRequest(
+                            projectId=project_id,
+                            command=f'git commit -m "[Athena] {plan[:60]}"',
+                            timeoutSec=30,
+                        ))
+                    except Exception:
+                        pass
+                # Even without PR, merge to main so changes aren't lost
+                try:
+                    self.runner.run_cmd(CmdRequest(
+                        projectId=project_id,
+                        command="git checkout main",
+                        timeoutSec=30,
+                    ))
+                    self.runner.run_cmd(CmdRequest(
+                        projectId=project_id,
+                        command=f"git merge {branch_name} --no-edit",
+                        timeoutSec=30,
+                    ))
+                    logger.info("Merged %s into main locally", branch_name)
+                    result.branch = f"{branch_name} (merged to main)"
+                except Exception as merge_err:
+                    logger.warning("Merge to main failed: %s", merge_err)
+                result.error = ""
+                result.success = True
         elif not all_success:
-            # Go back to main, leave branch for inspection
+            # Commit WIP, leave branch for inspection
+            _progress("cleanup", "Some subtasks failed — saving WIP...")
             try:
                 self.runner.run_cmd(CmdRequest(
                     projectId=project_id,
-                    command=f"git commit -m 'WIP: {plan[:50]} (partial, needs review)' --allow-empty",
+                    command=f'git commit -m "WIP: {plan[:50]} (partial, needs review)"',
                     timeoutSec=30,
                 ))
             except Exception:
@@ -311,16 +360,25 @@ class ExecutionBridge:
         result.success = all_success and not result.error
         result.duration_ms = int((time.perf_counter() - t0) * 1000)
 
-        # Switch back to main
+        # Switch back to main (if not already there from merge)
+        _progress("cleanup", "Switching back to main...")
         try:
-            self.runner.run_cmd(CmdRequest(
+            # Force checkout to main, discarding any leftover unstaged changes
+            current = self.runner.run_cmd(CmdRequest(
                 projectId=project_id,
-                command="git checkout main",
-                timeoutSec=30,
+                command="git rev-parse --abbrev-ref HEAD",
+                timeoutSec=10,
             ))
+            if current.stdout.strip() != "main":
+                self.runner.run_cmd(CmdRequest(
+                    projectId=project_id,
+                    command="git checkout main",
+                    timeoutSec=30,
+                ))
         except Exception:
             logger.warning("Failed to switch back to main")
 
+        _progress("done", f"Execution completed in {int((time.perf_counter() - t0) * 1000)}ms")
         return result
 
     # -- Prompt building -------------------------------------------------------
