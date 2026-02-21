@@ -129,6 +129,50 @@ projects:
 
     tags: [client, production]
 
+  # ── William Portfolio ──────────────────────────────────────────────────
+  - id: will-portfolio
+    name: William Portfolio
+    group: active-clients
+    priority: medium
+    ownership: personal
+
+    repo_path: "C:/web dev/will-potfoliov2"
+    git_remote: ""
+
+    local:
+      path_windows: "C:\\web dev\\will-potfoliov2"
+
+    envs:
+      local:
+        app_url: "http://localhost:3000"
+      prod:
+        app_url: "https://williamferrant-dev.vercel.app"
+
+    health_checks:
+      - id: prod-http
+        type: http
+        url: "https://williamferrant-dev.vercel.app"
+        expected_status: 200
+        timeout_ms: 10000
+        interval_seconds: 60
+      - id: tls-cert
+        type: tls
+        hostname: "williamferrant-dev.vercel.app"
+        warn_days_before: 14
+        interval_seconds: 3600
+      - id: dns-resolve
+        type: dns
+        hostname: "williamferrant-dev.vercel.app"
+        interval_seconds: 300
+
+    runbooks:
+      - label: "Start dev server"
+        command: "npm run dev"
+      - label: "Build"
+        command: "npm run build"
+
+    tags: [portfolio, nextjs, personal, vercel]
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Check type reference:
 #
