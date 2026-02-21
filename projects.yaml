@@ -99,6 +99,11 @@ projects:
     repo_path: ""
     git_remote: "https://github.com/Krysyaga/esther-house"
 
+    local:
+      path_windows: "C:\\web dev\\esther-house"
+      path_linux: ""
+      path_mac: ""
+
     envs:
       prod:
         app_url: "https://estherhouse.ch"

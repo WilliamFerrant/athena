@@ -23,6 +23,51 @@ router = APIRouter()
 # -- Request/Response models ---------------------------------------------------
 
 
+# -- Helpers for plan detection + auto-execution --------------------------------
+
+def _try_extract_plan(text: str) -> dict[str, Any] | None:
+    """Try to extract a JSON plan with subtasks from agent response text."""
+    try:
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start >= 0 and end > start:
+            data = json.loads(text[start:end])
+            if (
+                "subtasks" in data
+                and isinstance(data["subtasks"], list)
+                and len(data["subtasks"]) > 0
+            ):
+                return data
+    except (ValueError, KeyError, json.JSONDecodeError):
+        pass
+    return None
+
+
+def _detect_project_id(plan_data: dict[str, Any], registry: Any) -> str:
+    """Detect which project a plan targets. Defaults to ai-companion (self-edit)."""
+    if not registry:
+        return "ai-companion"
+    plan_text = (plan_data.get("plan", "") + " ").lower()
+    # Self-edit indicators take precedence
+    self_keywords = ["projects.yaml", "mon dashboard", "my dashboard", "my config", "ma config", "athena"]
+    if any(kw in plan_text for kw in self_keywords):
+        return "ai-companion"
+    for st in plan_data.get("subtasks", []):
+        desc = st.get("description", "").lower()
+        if any(kw in desc for kw in self_keywords):
+            return "ai-companion"
+    # Check for explicit project names
+    for pid in registry.list_ids():
+        if pid in plan_text:
+            return pid
+    for st in plan_data.get("subtasks", []):
+        desc = st.get("description", "").lower()
+        for pid in registry.list_ids():
+            if pid in desc:
+                return pid
+    return "ai-companion"
+
+
 class TaskRequest(BaseModel):
     task: str
     use_memory: bool = True
@@ -615,6 +660,37 @@ async def stream_chat(req: StreamChatRequest, request: Request):
             # Send done event with full response
             summary = agent.llm_backend.agent_summary(req.agent)
             yield f"event: done\ndata: {json.dumps({'response': full_text, 'agent_id': req.agent, 'token_summary': summary})}\n\n"
+
+            # ── Auto-execution: detect plan → execute via bridge ──
+            bridge = getattr(request.app.state, "execution_bridge", None)
+            if bridge and full_text:
+                plan_data = _try_extract_plan(full_text)
+                if plan_data and plan_data.get("subtasks"):
+                    registry = getattr(request.app.state, "registry", None)
+                    project_id = req.project_id or _detect_project_id(plan_data, registry)
+                    subtasks = plan_data["subtasks"]
+                    plan_text = plan_data.get("plan", "")
+
+                    if bridge.is_runner_online():
+                        yield f"event: executing\ndata: {json.dumps({'phase': 'starting', 'project_id': project_id, 'subtask_count': len(subtasks), 'detail': 'Plan detected — executing via runner...'})}\n\n"
+
+                        try:
+                            loop = asyncio.get_event_loop()
+                            exec_result = await loop.run_in_executor(
+                                None,
+                                lambda: bridge.execute_plan(
+                                    project_id=project_id,
+                                    plan=plan_text,
+                                    subtasks=subtasks,
+                                    requested_by="web",
+                                ),
+                            )
+                            yield f"event: executed\ndata: {json.dumps({'success': exec_result.success, 'branch': exec_result.branch, 'pr_url': exec_result.pr_url, 'error': exec_result.error, 'duration_ms': exec_result.duration_ms, 'subtask_results': exec_result.subtask_results})}\n\n"
+                        except Exception as ex:
+                            logger.exception("Auto-execution failed")
+                            yield f"event: executed\ndata: {json.dumps({'success': False, 'error': str(ex)})}\n\n"
+                    else:
+                        yield f"event: executing\ndata: {json.dumps({'phase': 'skipped', 'detail': 'Runner is offline — plan cached but not executed. Start the runner to enable auto-execution.'})}\n\n"
 
         except Exception as e:
             logger.exception("Stream chat error")
