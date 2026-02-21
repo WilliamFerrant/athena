@@ -204,24 +204,44 @@ def local_usage() -> dict[str, Any]:
 
 @router.post("/cmd", response_model=CmdResponse)
 def run_command(req: CmdRequest, request: Request) -> CmdResponse:
-    """Execute an arbitrary command in a project directory."""
+    """Execute an arbitrary command in a project directory.
+
+    Short named aliases (dev/test/lint/build/start) are resolved to the
+    project's configured command before execution.
+    """
+    # Resolve named command aliases via project commands config
+    command = req.command.strip()
+    _NAMED = {"dev", "test", "lint", "build", "start"}
+    if command in _NAMED:
+        registry = request.app.state.registry
+        project = registry.get(req.projectId)
+        resolved = getattr(project.commands, command, "") if project else ""
+        if not resolved:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"No '{command}' command configured for project '{req.projectId}'. "
+                    f"Add it under commands.{command} in projects.yaml."
+                ),
+            )
+        command = resolved
+        logger.info("Resolved alias '%s' → '%s' for project %s", req.command, command, req.projectId)
+
     # Validate safety
     try:
-        validate_command(req.command)
+        validate_command(command)
     except SafetyError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     project_path = _resolve_project_path(req.projectId, request)
     timeout = min(req.timeoutSec, runner_settings.runner_command_timeout)
 
-    # Split command for subprocess (supports both simple and complex commands)
-    # On Windows, use cmd /c for complex commands; simple ones can be split
     if sys.platform == "win32":
-        cmd = ["cmd", "/c", req.command]
+        cmd = ["cmd", "/c", command]
     else:
-        cmd = ["sh", "-c", req.command]
+        cmd = ["sh", "-c", command]
 
-    logger.info("CMD [%s] in %s: %s", req.projectId, project_path, req.command)
+    logger.info("CMD [%s] in %s: %s", req.projectId, project_path, command)
     return _run_subprocess(cmd, project_path, timeout)
 
 

@@ -1,13 +1,16 @@
 """API routes for the Project Registry + Health Engine.
 
 Endpoints:
-  GET  /api/projects              — list all projects grouped by category
-  GET  /api/projects/{id}         — project detail + latest health
-  POST /api/projects/{id}/check   — trigger immediate health check
-  GET  /api/health/summary        — all projects with badge status
-  GET  /api/health/history/{project_id}/{check_id} — time series
-  GET  /api/health/incidents      — open + recent incidents
-  GET  /api/health/stream         — SSE stream of live check results
+  GET    /api/projects              — list all projects grouped by category
+  POST   /api/projects              — add a new project to projects.yaml
+  GET    /api/projects/{id}         — project detail + latest health
+  PUT    /api/projects/{id}         — update an existing project
+  DELETE /api/projects/{id}         — remove a project
+  POST   /api/projects/{id}/check   — trigger immediate health check
+  GET    /api/health/summary        — all projects with badge status
+  GET    /api/health/history/{project_id}/{check_id} — time series
+  GET    /api/health/incidents      — open + recent incidents
+  GET    /api/health/stream         — SSE stream of live check results
 """
 
 from __future__ import annotations
@@ -17,8 +20,12 @@ import json
 import logging
 from typing import Any
 
+import re
+
+import yaml
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +168,135 @@ async def trigger_check(project_id: str, request: Request) -> dict[str, Any]:
             for r in results
         ],
     }
+
+
+# ── Project CRUD ─────────────────────────────────────────────────────────────
+
+
+class ProjectUpsertRequest(BaseModel):
+    id: str
+    name: str
+    group: str = "internal"
+    priority: str = "medium"
+    ownership: str = "personal"
+    repo_path: str = ""
+    git_remote: str = ""
+    path_windows: str = ""
+    path_linux: str = ""
+    path_mac: str = ""
+    commands: dict[str, str] = {}
+    health_url: str = ""
+    tags: list[str] = []
+
+
+def _slugify(name: str) -> str:
+    """Turn a project name into a safe YAML id."""
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
+
+def _read_yaml() -> dict:
+    from src.projects.registry import REGISTRY_PATH
+    if not REGISTRY_PATH.exists():
+        return {"projects": []}
+    return yaml.safe_load(REGISTRY_PATH.read_text(encoding="utf-8")) or {"projects": []}
+
+
+def _write_yaml(data: dict) -> None:
+    from src.projects.registry import REGISTRY_PATH
+    REGISTRY_PATH.write_text(
+        yaml.dump(data, allow_unicode=True, default_flow_style=False, sort_keys=False),
+        encoding="utf-8",
+    )
+
+
+def _req_to_entry(req: ProjectUpsertRequest) -> dict:
+    entry: dict = {
+        "id": req.id,
+        "name": req.name,
+        "group": req.group,
+        "priority": req.priority,
+        "ownership": req.ownership,
+    }
+    if req.repo_path:
+        entry["repo_path"] = req.repo_path
+    if req.git_remote:
+        entry["git_remote"] = req.git_remote
+    if req.path_windows or req.path_linux or req.path_mac:
+        entry["local"] = {}
+        if req.path_windows:
+            entry["local"]["path_windows"] = req.path_windows
+        if req.path_linux:
+            entry["local"]["path_linux"] = req.path_linux
+        if req.path_mac:
+            entry["local"]["path_mac"] = req.path_mac
+    cmds = {k: v for k, v in req.commands.items() if v}
+    if cmds:
+        entry["commands"] = cmds
+    if req.health_url:
+        entry["health_checks"] = [{
+            "id": "http",
+            "type": "http",
+            "url": req.health_url,
+            "expected_status": 200,
+            "timeout_ms": 10000,
+            "interval_seconds": 60,
+        }]
+    if req.tags:
+        entry["tags"] = req.tags
+    return entry
+
+
+@health_router.post("/projects", status_code=201)
+def create_project(req: ProjectUpsertRequest, request: Request) -> dict[str, Any]:
+    """Add a new project to projects.yaml and reload the registry."""
+    pid = req.id or _slugify(req.name)
+    req.id = pid
+
+    registry = request.app.state.registry
+    if registry.get(pid):
+        raise HTTPException(status_code=409, detail=f"Project '{pid}' already exists")
+
+    data = _read_yaml()
+    data.setdefault("projects", []).append(_req_to_entry(req))
+    _write_yaml(data)
+
+    registry.reload()
+    logger.info("Project created: %s", pid)
+    return {"status": "created", "id": pid}
+
+
+@health_router.put("/projects/{project_id}")
+def update_project(project_id: str, req: ProjectUpsertRequest, request: Request) -> dict[str, Any]:
+    """Update an existing project in projects.yaml and reload the registry."""
+    data = _read_yaml()
+    projects = data.get("projects", [])
+    idx = next((i for i, p in enumerate(projects) if p.get("id") == project_id), None)
+    if idx is None:
+        raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
+
+    req.id = project_id
+    projects[idx] = _req_to_entry(req)
+    _write_yaml(data)
+
+    request.app.state.registry.reload()
+    logger.info("Project updated: %s", project_id)
+    return {"status": "updated", "id": project_id}
+
+
+@health_router.delete("/projects/{project_id}")
+def delete_project(project_id: str, request: Request) -> dict[str, Any]:
+    """Remove a project from projects.yaml and reload the registry."""
+    data = _read_yaml()
+    projects = data.get("projects", [])
+    before = len(projects)
+    data["projects"] = [p for p in projects if p.get("id") != project_id]
+    if len(data["projects"]) == before:
+        raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
+
+    _write_yaml(data)
+    request.app.state.registry.reload()
+    logger.info("Project deleted: %s", project_id)
+    return {"status": "deleted", "id": project_id}
 
 
 # ── Health endpoints ─────────────────────────────────────────────────────────

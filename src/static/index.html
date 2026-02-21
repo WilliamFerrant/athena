@@ -607,7 +607,7 @@ body.workshop-mode .center-header{opacity:1;pointer-events:auto}
   <div class="sidebar">
     <!-- Projects -->
     <div class="sb-section" style="flex:1;overflow:hidden;display:flex;flex-direction:column">
-      <div class="sb-header">Projects <span class="refresh" onclick="loadProjects()">&#8635;</span></div>
+      <div class="sb-header">Projects <span class="refresh" onclick="loadProjects()">&#8635;</span><span class="refresh" onclick="openProjectModal()" title="Add project" style="margin-left:4px">&#43;</span></div>
       <div class="sb-body" id="projectList" style="flex:1;overflow-y:auto"></div>
     </div>
     <!-- Health -->
@@ -1278,6 +1278,7 @@ function renderProjectList(){
       <span class="pname">${esc(p.name)}</span>
       <span class="dev-dot ${devDot}" title="${devDot==='live'?'Dev online':'Dev offline'}"></span>
       <span class="pdetail">${checks?checks+'chk':''}</span>
+      <span class="refresh" onclick="event.stopPropagation();openProjectModal('${escAttr(p.id)}')" title="Edit project" style="margin-left:auto;opacity:.5;font-size:10px">&#9998;</span>
     </div>`;
   }).join('');
 }
@@ -3419,6 +3420,200 @@ async function init(){
   addActivity('🚀','Athena initialized');
 }
 init();
+
+// ── PROJECT MODAL ────────────────────────────────────────────────────────────
+
+function openProjectModal(editId){
+  const p = editId ? projects.find(x=>x.id===editId) : null;
+  const cmds = p?.commands||{};
+  document.getElementById('projectModalTitle').textContent = p ? 'Edit Project' : 'Add Project';
+  document.getElementById('pmId').value       = p?.id||'';
+  document.getElementById('pmName').value     = p?.name||'';
+  document.getElementById('pmGroup').value    = p?.group||'internal';
+  document.getElementById('pmPriority').value = p?.priority||'medium';
+  document.getElementById('pmOwnership').value= p?.ownership||'personal';
+  document.getElementById('pmRepoPath').value = p?.repo_path||'';
+  document.getElementById('pmGitRemote').value= p?.git_remote||'';
+  document.getElementById('pmPathWin').value  = p?.local?.path_windows||'';
+  document.getElementById('pmPathLinux').value= p?.local?.path_linux||'';
+  document.getElementById('pmCmdDev').value   = cmds.dev||'';
+  document.getElementById('pmCmdTest').value  = cmds.test||'';
+  document.getElementById('pmCmdLint').value  = cmds.lint||'';
+  document.getElementById('pmCmdBuild').value = cmds.build||'';
+  document.getElementById('pmHealthUrl').value= p?.health_checks?.[0]?.url||'';
+  document.getElementById('pmTags').value     = (p?.tags||[]).join(', ');
+  document.getElementById('pmEditId').value   = editId||'';
+  document.getElementById('pmDeleteBtn').style.display = editId ? '' : 'none';
+  document.getElementById('projectModal').classList.add('open');
+}
+
+function closeProjectModal(){
+  document.getElementById('projectModal').classList.remove('open');
+}
+
+async function submitProjectModal(){
+  const editId = document.getElementById('pmEditId').value;
+  const name   = document.getElementById('pmName').value.trim();
+  if(!name){ alert('Name is required'); return; }
+
+  const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+  const id   = document.getElementById('pmId').value.trim() || slug(name);
+
+  const payload = {
+    id,
+    name,
+    group:      document.getElementById('pmGroup').value,
+    priority:   document.getElementById('pmPriority').value,
+    ownership:  document.getElementById('pmOwnership').value,
+    repo_path:  document.getElementById('pmRepoPath').value.trim(),
+    git_remote: document.getElementById('pmGitRemote').value.trim(),
+    path_windows: document.getElementById('pmPathWin').value.trim(),
+    path_linux:   document.getElementById('pmPathLinux').value.trim(),
+    commands: {
+      dev:   document.getElementById('pmCmdDev').value.trim(),
+      test:  document.getElementById('pmCmdTest').value.trim(),
+      lint:  document.getElementById('pmCmdLint').value.trim(),
+      build: document.getElementById('pmCmdBuild').value.trim(),
+    },
+    health_url: document.getElementById('pmHealthUrl').value.trim(),
+    tags: document.getElementById('pmTags').value.split(',').map(t=>t.trim()).filter(Boolean),
+  };
+
+  const method = editId ? 'PUT' : 'POST';
+  const url    = editId ? `${API}/projects/${editId}` : `${API}/projects`;
+  const errEl  = document.getElementById('pmError');
+  errEl.textContent='';
+
+  try{
+    const r = await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const d = await r.json();
+    if(!r.ok){ errEl.textContent = d.detail||'Error'; return; }
+    closeProjectModal();
+    await loadProjects();
+    addActivity('📁', `${editId?'Updated':'Added'} project: ${name}`);
+  }catch(e){ errEl.textContent = e.message; }
+}
+
+async function deleteProject(id, name){
+  if(!confirm(`Delete project "${name}"? This removes it from projects.yaml.`)) return;
+  const r = await fetch(`${API}/projects/${id}`,{method:'DELETE'});
+  if(r.ok){ await loadProjects(); addActivity('🗑️',`Deleted project: ${name}`); }
+  else { const d=await r.json(); alert(d.detail||'Delete failed'); }
+}
+
 </script>
+
+<!-- PROJECT MODAL -->
+<div id="projectModal" class="pm-overlay" onclick="if(event.target===this)closeProjectModal()">
+  <div class="pm-box">
+    <div class="pm-header">
+      <span id="projectModalTitle">Add Project</span>
+      <button class="pm-close" onclick="closeProjectModal()">&#10005;</button>
+    </div>
+    <div class="pm-body">
+      <input type="hidden" id="pmEditId">
+      <div class="pm-row">
+        <label>Name *</label>
+        <input id="pmName" placeholder="My Project" class="pm-input">
+      </div>
+      <div class="pm-row">
+        <label>ID <span style="color:var(--muted);font-size:10px">(auto from name)</span></label>
+        <input id="pmId" placeholder="my-project" class="pm-input">
+      </div>
+      <div class="pm-row pm-3col">
+        <div>
+          <label>Group</label>
+          <select id="pmGroup" class="pm-input">
+            <option value="active-clients">active-clients</option>
+            <option value="internal">internal</option>
+            <option value="paused">paused</option>
+            <option value="r-and-d">r-and-d</option>
+          </select>
+        </div>
+        <div>
+          <label>Priority</label>
+          <select id="pmPriority" class="pm-input">
+            <option value="high">high</option>
+            <option value="medium">medium</option>
+            <option value="low">low</option>
+          </select>
+        </div>
+        <div>
+          <label>Ownership</label>
+          <select id="pmOwnership" class="pm-input">
+            <option value="personal">personal</option>
+            <option value="client">client</option>
+          </select>
+        </div>
+      </div>
+      <div class="pm-row">
+        <label>Repo path <span style="color:var(--muted);font-size:10px">(local absolute path)</span></label>
+        <input id="pmRepoPath" placeholder="C:/web dev/my-project" class="pm-input">
+      </div>
+      <div class="pm-row pm-2col">
+        <div>
+          <label>Windows path</label>
+          <input id="pmPathWin" placeholder="C:\\web dev\\my-project" class="pm-input">
+        </div>
+        <div>
+          <label>Linux path</label>
+          <input id="pmPathLinux" placeholder="/home/user/my-project" class="pm-input">
+        </div>
+      </div>
+      <div class="pm-row">
+        <label>Git remote</label>
+        <input id="pmGitRemote" placeholder="https://github.com/user/repo" class="pm-input">
+      </div>
+      <div class="pm-section-label">Commands</div>
+      <div class="pm-row pm-2col">
+        <div><label>dev</label><input id="pmCmdDev" placeholder="npm run dev" class="pm-input"></div>
+        <div><label>test</label><input id="pmCmdTest" placeholder="npm test" class="pm-input"></div>
+      </div>
+      <div class="pm-row pm-2col">
+        <div><label>lint</label><input id="pmCmdLint" placeholder="npm run lint" class="pm-input"></div>
+        <div><label>build</label><input id="pmCmdBuild" placeholder="npm run build" class="pm-input"></div>
+      </div>
+      <div class="pm-row">
+        <label>Health check URL <span style="color:var(--muted);font-size:10px">(HTTP)</span></label>
+        <input id="pmHealthUrl" placeholder="https://mysite.com" class="pm-input">
+      </div>
+      <div class="pm-row">
+        <label>Tags <span style="color:var(--muted);font-size:10px">(comma separated)</span></label>
+        <input id="pmTags" placeholder="nextjs, typescript, client" class="pm-input">
+      </div>
+      <div id="pmError" style="color:var(--red);font-size:11px;min-height:16px"></div>
+    </div>
+    <div class="pm-footer">
+      <button class="pm-btn-del" id="pmDeleteBtn" onclick="deleteProject(document.getElementById('pmEditId').value, document.getElementById('pmName').value)" style="display:none">Delete</button>
+      <button class="pm-btn-cancel" onclick="closeProjectModal()">Cancel</button>
+      <button class="pm-btn-save" onclick="submitProjectModal()">Save</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.pm-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1200;align-items:center;justify-content:center}
+.pm-overlay.open{display:flex}
+.pm-box{background:var(--panel);border:1px solid var(--border);border-radius:8px;width:520px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
+.pm-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;color:var(--text)}
+.pm-close{background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0 4px}
+.pm-close:hover{color:var(--text)}
+.pm-body{padding:16px 18px;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
+.pm-row{display:flex;flex-direction:column;gap:4px}
+.pm-row label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
+.pm-2col{display:grid!important;grid-template-columns:1fr 1fr;gap:10px}
+.pm-3col{display:grid!important;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.pm-input{background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;padding:6px 8px;outline:none;font-family:inherit;width:100%;box-sizing:border-box}
+.pm-input:focus{border-color:var(--accent)}
+.pm-section-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent);margin-top:4px}
+.pm-footer{display:flex;gap:8px;padding:12px 18px;border-top:1px solid var(--border);justify-content:flex-end}
+.pm-btn-save{background:var(--accent);color:#000;border:none;border-radius:4px;padding:6px 18px;font-size:12px;font-weight:600;cursor:pointer}
+.pm-btn-save:hover{opacity:.85}
+.pm-btn-cancel{background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;padding:6px 14px;font-size:12px;cursor:pointer}
+.pm-btn-cancel:hover{border-color:var(--text);color:var(--text)}
+.pm-btn-del{background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:6px 14px;font-size:12px;cursor:pointer;margin-right:auto}
+.pm-btn-del:hover{background:var(--red);color:#fff}
+</style>
+
 </body>
 </html>
