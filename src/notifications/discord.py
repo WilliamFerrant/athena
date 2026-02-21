@@ -202,8 +202,11 @@ class DiscordBotPoller:
 
         @client.event
         async def on_message(message):
-            # Ignore own messages
-            if message.author == client.user:
+            # Ignore ALL bots (own bot, webhooks, other bots)
+            if message.author.bot:
+                return
+            # Also ignore webhook-originated messages explicitly
+            if message.webhook_id is not None:
                 return
             # Only listen in the configured channel
             if message.channel.id != channel_id_int:

@@ -158,14 +158,17 @@ async def lifespan(app: FastAPI):
 
     # Discord bot poller (user → Athena bidirectional comms)
     def _handle_discord_message(channel_id: str, text: str) -> str | None:
-        """Forward Discord messages to Athena, return reply."""
+        """Forward Discord messages to Athena, return reply.
+
+        The reply is sent back via the bot's channel.send() in discord.py.
+        Do NOT also send via webhook — that creates a feedback loop
+        (bot sees webhook message → treats as new user message → loop).
+        """
         try:
             manager = app.state.agents.get("manager")
             if manager:
                 reply = manager.chat(text, task_context="discord chat")
-                # Don't echo error messages to Discord (prevents spam loops)
                 if reply and not reply.startswith("Error:"):
-                    discord_notifier.send_sync(f"**Athena:** {reply}")
                     return reply
                 else:
                     logger.warning("Suppressed error reply to Discord: %s", reply[:120] if reply else "empty")
