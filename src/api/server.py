@@ -163,9 +163,13 @@ async def lifespan(app: FastAPI):
             manager = app.state.agents.get("manager")
             if manager:
                 reply = manager.chat(text, task_context="discord chat")
-                # Also push via webhook for redundancy
-                discord_notifier.send_sync(f"**Athena:** {reply}")
-                return reply
+                # Don't echo error messages to Discord (prevents spam loops)
+                if reply and not reply.startswith("Error:"):
+                    discord_notifier.send_sync(f"**Athena:** {reply}")
+                    return reply
+                else:
+                    logger.warning("Suppressed error reply to Discord: %s", reply[:120] if reply else "empty")
+                    return "⚠️ Something went wrong — check server logs."
         except Exception:
             logger.exception("Discord message handler error")
         return None
@@ -206,9 +210,31 @@ async def lifespan(app: FastAPI):
         logger.warning("Discord bot poller failed to start")
 
     # Autonomous heartbeat (Athena picks tasks when idle)
+    _consecutive_heartbeat_errors = 0
+    MAX_HEARTBEAT_ERRORS = 3  # pause broadcasting after N consecutive errors
+
     def _heartbeat_action_callback(action: dict) -> None:
         """Broadcast heartbeat actions to Discord."""
+        nonlocal _consecutive_heartbeat_errors
         action_type = action.get("type", "unknown")
+
+        # Don't broadcast errors — prevents spam
+        error = action.get("error")
+        if error:
+            _consecutive_heartbeat_errors += 1
+            logger.warning(
+                "Heartbeat error #%d: %s", _consecutive_heartbeat_errors, str(error)[:200]
+            )
+            if _consecutive_heartbeat_errors >= MAX_HEARTBEAT_ERRORS:
+                logger.error(
+                    "Heartbeat paused Discord notifications after %d consecutive errors",
+                    _consecutive_heartbeat_errors,
+                )
+            return
+
+        # Success → reset error counter
+        _consecutive_heartbeat_errors = 0
+
         if action_type == "pick_task":
             import asyncio
             asyncio.ensure_future(
@@ -219,7 +245,6 @@ async def lifespan(app: FastAPI):
             )
         elif action_type == "rest":
             discord_notifier.send_sync(f"💤 Resting: {action.get('reason', '')}")
-
     heartbeat = HeartbeatScheduler(
         manager=app.state.agents["manager"],
         task_store=task_store,

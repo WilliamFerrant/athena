@@ -123,6 +123,9 @@ class HeartbeatScheduler:
 
     # -- core loop -------------------------------------------------------------
 
+    _consecutive_errors: int = 0
+    MAX_CONSECUTIVE_ERRORS: int = 3  # back off after N errors in a row
+
     async def _heartbeat_loop(self) -> None:
         """Main loop: sleep → evaluate → maybe act → repeat."""
         while self._running:
@@ -130,6 +133,17 @@ class HeartbeatScheduler:
                 await asyncio.sleep(self.interval)
                 if not self._running:
                     break
+
+                # Back off when LLM keeps failing (exponential)
+                if self._consecutive_errors >= self.MAX_CONSECUTIVE_ERRORS:
+                    backoff = min(600, self.interval * (2 ** self._consecutive_errors))
+                    logger.warning(
+                        "Heartbeat: %d consecutive errors, backing off %ds",
+                        self._consecutive_errors, backoff,
+                    )
+                    await asyncio.sleep(backoff)
+                    # Reset after long sleep to allow a retry
+                    self._consecutive_errors = 0
 
                 # Only act if user is idle and we're under budget
                 if not self.is_idle:
@@ -149,11 +163,17 @@ class HeartbeatScheduler:
                 action = await self._decide_action()
                 if action:
                     await self._execute_action(action)
+                    # Track consecutive errors
+                    if action.get("error"):
+                        self._consecutive_errors += 1
+                    else:
+                        self._consecutive_errors = 0
 
             except asyncio.CancelledError:
                 break
             except Exception:
-                logger.exception("Heartbeat loop error")
+                self._consecutive_errors += 1
+                logger.exception("Heartbeat loop error (#%d)", self._consecutive_errors)
                 await asyncio.sleep(30)
 
     async def _decide_action(self) -> dict[str, Any] | None:

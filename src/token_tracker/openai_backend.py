@@ -106,7 +106,7 @@ class OpenAIBackend:
             response = self._client.chat.completions.create(
                 model=use_model,
                 messages=oai_messages,
-                max_tokens=max_tokens,
+                max_completion_tokens=max_tokens,
             )
             output = response.choices[0].message.content or ""
         except Exception as exc:
@@ -154,7 +154,7 @@ class OpenAIBackend:
             response = await self._async_client.chat.completions.create(
                 model=use_model,
                 messages=oai_messages,
-                max_tokens=max_tokens,
+                max_completion_tokens=max_tokens,
             )
             output = response.choices[0].message.content or ""
         except Exception as exc:
