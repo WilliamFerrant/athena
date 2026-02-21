@@ -26,7 +26,7 @@ from src.health.engine import HealthStore
 from src.health.scheduler import HealthScheduler
 from src.memory.curator import MemoryCurator, MemoryCurationStore
 from src.memory.mem0_client import AgentMemory
-from src.notifications.telegram import TelegramNotifier, TelegramPoller
+from src.notifications.discord import DiscordNotifier, DiscordBotPoller
 from src.projects.registry import ProjectRegistry
 from src.runner_connector.client import RunnerClient
 from src.runner_connector.poller import RunnerPoller
@@ -152,68 +152,73 @@ async def lifespan(app: FastAPI):
     app.state.curation_store = curation_store
     logger.info("Memory curator initialised")
 
-    # Telegram notifier (Athena → user push notifications)
-    telegram_notifier = TelegramNotifier()
-    app.state.telegram_notifier = telegram_notifier
+    # Discord notifier (Athena → user push notifications via webhook)
+    discord_notifier = DiscordNotifier()
+    app.state.discord_notifier = discord_notifier
 
-    # Telegram poller (user → Athena bidirectional comms)
-    def _handle_telegram_message(chat_id: str, text: str) -> None:
-        """Forward Telegram messages to Athena."""
+    # Discord bot poller (user → Athena bidirectional comms)
+    def _handle_discord_message(channel_id: str, text: str) -> str | None:
+        """Forward Discord messages to Athena, return reply."""
         try:
             manager = app.state.agents.get("manager")
             if manager:
-                reply = manager.chat(text, task_context="telegram chat")
-                telegram_notifier.send_sync(reply)
+                reply = manager.chat(text, task_context="discord chat")
+                # Also push via webhook for redundancy
+                discord_notifier.send_sync(f"**Athena:** {reply}")
+                return reply
         except Exception:
-            logger.exception("Telegram message handler error")
+            logger.exception("Discord message handler error")
+        return None
 
-    def _handle_telegram_command(command: str, args: list[str]) -> None:
-        """Handle /commands from Telegram."""
+    def _handle_discord_command(command: str, args: list[str]) -> str | None:
+        """Handle !commands from Discord, return response text."""
         if command == "status":
             heartbeat = getattr(app.state, "heartbeat", None)
             if heartbeat:
                 status = heartbeat.status()
-                telegram_notifier.send_sync(
+                return (
+                    f"📊 **Athena Status**\n"
                     f"Status: {status['drives']['status']}\n"
                     f"Energy: {status['drives']['energy']}\n"
                     f"Idle: {status['idle_seconds']:.0f}s\n"
                     f"Actions/hr: {status['actions_this_hour']}/{status['max_actions_per_hour']}"
                 )
+            return "Heartbeat not running"
         elif command == "tasks":
             tasks = task_store.list_by_column("backlog")
             if tasks:
                 lines = [f"- [{t.priority}] {t.title}" for t in tasks[:10]]
-                telegram_notifier.send_sync("Backlog:\n" + "\n".join(lines))
-            else:
-                telegram_notifier.send_sync("Backlog is empty")
+                return "📋 **Backlog:**\n" + "\n".join(lines)
+            return "Backlog is empty"
         elif command == "approve" and args:
             task_store.move(args[0], "done")
-            telegram_notifier.send_sync(f"Task {args[0]} approved → done")
+            return f"✅ Task {args[0]} approved → done"
+        return None
 
-    telegram_poller = TelegramPoller(
-        on_message=_handle_telegram_message,
-        on_command=_handle_telegram_command,
+    discord_poller = DiscordBotPoller(
+        on_message=_handle_discord_message,
+        on_command=_handle_discord_command,
     )
-    app.state.telegram_poller = telegram_poller
+    app.state.discord_poller = discord_poller
     try:
-        await telegram_poller.start()
+        await discord_poller.start()
     except Exception:
-        logger.warning("Telegram poller failed to start")
+        logger.warning("Discord bot poller failed to start")
 
     # Autonomous heartbeat (Athena picks tasks when idle)
     def _heartbeat_action_callback(action: dict) -> None:
-        """Broadcast heartbeat actions to Telegram."""
+        """Broadcast heartbeat actions to Discord."""
         action_type = action.get("type", "unknown")
         if action_type == "pick_task":
             import asyncio
             asyncio.ensure_future(
-                telegram_notifier.notify_task_started(
+                discord_notifier.notify_task_started(
                     action.get("task_title", "?"),
                     action.get("reason", ""),
                 )
             )
         elif action_type == "rest":
-            telegram_notifier.send_sync(f"💤 Resting: {action.get('reason', '')}")
+            discord_notifier.send_sync(f"💤 Resting: {action.get('reason', '')}")
 
     heartbeat = HeartbeatScheduler(
         manager=app.state.agents["manager"],
@@ -234,10 +239,10 @@ async def lifespan(app: FastAPI):
     # Shutdown
     if hasattr(app.state, "heartbeat"):
         await app.state.heartbeat.stop()
-    if hasattr(app.state, "telegram_poller"):
-        await app.state.telegram_poller.stop()
-    if hasattr(app.state, "telegram_notifier"):
-        await app.state.telegram_notifier.close()
+    if hasattr(app.state, "discord_poller"):
+        await app.state.discord_poller.stop()
+    if hasattr(app.state, "discord_notifier"):
+        await app.state.discord_notifier.close()
     await runner_poller.stop()
     await scheduler.stop()
     store.close()

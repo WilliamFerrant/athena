@@ -48,10 +48,13 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = "INFO"
 
-    # Notifications (optional — Slack / Telegram webhooks)
+    # Notifications (optional — Slack / Telegram / Discord)
     slack_webhook_url: str = ""
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
+    discord_webhook_url: str = ""     # Discord webhook for push notifications
+    discord_bot_token: str = ""       # Discord bot token for bidirectional comms
+    discord_channel_id: str = ""      # Discord channel ID the bot listens in
 
 
 settings = Settings()
