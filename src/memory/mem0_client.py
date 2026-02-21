@@ -84,10 +84,31 @@ class AgentMemory:
 
     def add_conversation(self, messages: list[dict[str, str]]) -> dict[str, Any]:
         """Extract and store memories from a conversation."""
-        return self._client.add(
+        result = self._client.add(
             messages,
             user_id=self._mem0_user_id,
         )
+
+        # Mirror into the knowledge graph if available
+        if self._graph is not None:
+            try:
+                results_list = result.get("results", []) if isinstance(result, dict) else []
+                for entry in results_list:
+                    mem_id = entry.get("id", "")
+                    memory_text = entry.get("memory", "")
+                    if mem_id and memory_text:
+                        self._graph.add_memory(
+                            memory_id=mem_id,
+                            content=memory_text,
+                            agent_id=self.agent_id,
+                            topic="conversation",
+                        )
+                if results_list:
+                    self._graph.auto_link_by_topic(agent_id=self.agent_id)
+            except Exception as exc:
+                logger.debug("Graph index failed for conversation: %s", exc)
+
+        return result
 
     # -- read ------------------------------------------------------------------
 
@@ -177,6 +198,36 @@ class AgentMemory:
         if self._graph is not None:
             base["graph"] = self._graph.stats()
         return base
+
+    def seed_graph(self) -> int:
+        """Populate the knowledge graph from existing mem0 memories.
+
+        Call once at startup to hydrate the graph with durable memories.
+        Returns the number of nodes added.
+        """
+        if self._graph is None:
+            return 0
+        all_mems = self.get_all()
+        added = 0
+        for mem in all_mems:
+            mem_id = mem.get("id", "")
+            content = mem.get("memory", mem.get("text", ""))
+            if not mem_id or not content:
+                continue
+            try:
+                self._graph.add_memory(
+                    memory_id=mem_id,
+                    content=content,
+                    agent_id=self.agent_id,
+                    topic=mem.get("metadata", {}).get("topic", "general") if isinstance(mem.get("metadata"), dict) else "general",
+                )
+                added += 1
+            except Exception:
+                pass
+        # Auto-link all nodes by topic
+        if added > 0:
+            self._graph.auto_link_by_topic(agent_id=self.agent_id)
+        return added
 
 
 # ---------------------------------------------------------------------------

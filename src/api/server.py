@@ -45,11 +45,20 @@ async def lifespan(app: FastAPI):
     tracker = TokenTracker()
     app.state.tracker = tracker
 
+    # Knowledge graph singleton — shared between all agent memories
+    knowledge_graph = None
+    try:
+        from src.memory.graph_context import get_shared_graph
+        knowledge_graph = get_shared_graph()
+        logger.info("Knowledge graph initialised")
+    except Exception:
+        logger.warning("Knowledge graph unavailable (networkx not installed?)")
+
     # Shared agent pool — persistent across requests so conversation history
     # and memory context accumulate naturally within a server session.
     def _make_memory(agent_id: str) -> AgentMemory | None:
         try:
-            return AgentMemory(agent_id=agent_id)
+            return AgentMemory(agent_id=agent_id, graph=knowledge_graph)
         except Exception:
             logger.warning("mem0 unavailable for %s — running without memory", agent_id)
             return None
@@ -69,6 +78,18 @@ async def lifespan(app: FastAPI):
         ),
     }
     logger.info("Agent pool initialised with memory=%s", "mem0" if app.state.agents["manager"].memory else "none")
+
+    # Seed knowledge graph from existing mem0 memories
+    if knowledge_graph:
+        total_seeded = 0
+        for agent_id, agent in app.state.agents.items():
+            if agent.memory:
+                try:
+                    n = agent.memory.seed_graph()
+                    total_seeded += n
+                except Exception:
+                    pass
+        logger.info("Knowledge graph seeded: %d nodes, %d edges", knowledge_graph.stats()["nodes"], knowledge_graph.stats()["edges"])
 
     # Project registry
     registry = ProjectRegistry()
@@ -106,13 +127,12 @@ async def lifespan(app: FastAPI):
     # MCP living context interceptor
     try:
         from src.context import init_mcp
-        from src.memory.graph_context import get_shared_graph
         mcp = init_mcp(
             runner_client=runner_client,
             runner_poller=None,  # wired after poller starts below
             health_store=store,
             agents=app.state.agents,
-            graph=get_shared_graph(),
+            graph=knowledge_graph,
         )
         app.state.mcp = mcp
         logger.info("MCP living context interceptor initialised")
