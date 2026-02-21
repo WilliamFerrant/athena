@@ -816,3 +816,63 @@ def memory_evolution_chain(memory_id: str, request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=503, detail="Memory curator not initialized")
     chain = curator.get_evolution_chain(memory_id)
     return {"chain": [m.to_dict() for m in chain]}
+
+
+# -- Execution Bridge ----------------------------------------------------------
+
+
+class ExecutePlanRequest(BaseModel):
+    project_id: str = "ai-companion"
+    plan: str
+    subtasks: list[dict[str, Any]]
+    auto_approve: bool = False
+
+
+@router.post("/execute")
+async def execute_plan(body: ExecutePlanRequest, request: Request) -> dict[str, Any]:
+    """Execute a plan through the execution bridge (runner → Claude CLI).
+
+    This turns Athena's plans into real code changes: feature branch,
+    Claude CLI edits, tests, git push, and PR creation.
+    """
+    bridge = getattr(request.app.state, "execution_bridge", None)
+    if not bridge:
+        raise HTTPException(status_code=503, detail="Execution bridge not initialized")
+
+    if not bridge.is_runner_online():
+        raise HTTPException(status_code=503, detail="Runner is offline — start the runner and SSH tunnel first")
+
+    # Run in a thread to not block the event loop
+    result = await asyncio.get_event_loop().run_in_executor(
+        None,
+        lambda: bridge.execute_plan(
+            project_id=body.project_id,
+            plan=body.plan,
+            subtasks=body.subtasks,
+            requested_by="web",
+            auto_approve=body.auto_approve,
+        ),
+    )
+
+    return {
+        "success": result.success,
+        "project_id": result.project_id,
+        "branch": result.branch,
+        "pr_url": result.pr_url,
+        "error": result.error,
+        "duration_ms": result.duration_ms,
+        "subtask_results": result.subtask_results,
+    }
+
+
+@router.get("/execute/status")
+def execution_status(request: Request) -> dict[str, Any]:
+    """Check if the execution bridge and runner are available."""
+    bridge = getattr(request.app.state, "execution_bridge", None)
+    if not bridge:
+        return {"available": False, "reason": "Execution bridge not initialized"}
+    online = bridge.is_runner_online()
+    return {
+        "available": online,
+        "reason": "Runner online" if online else "Runner offline",
+    }

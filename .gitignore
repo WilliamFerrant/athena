@@ -30,4 +30,5 @@ htmlcov/
 .coverage
 *.db
 *.sqlite3
+data/
 node_modules/

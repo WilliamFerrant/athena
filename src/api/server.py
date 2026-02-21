@@ -152,6 +152,18 @@ async def lifespan(app: FastAPI):
     app.state.curation_store = curation_store
     logger.info("Memory curator initialised")
 
+    # Execution bridge (lets Athena actually modify code via runner)
+    from src.orchestrator.execution_bridge import ExecutionBridge
+    execution_bridge = ExecutionBridge(
+        runner_client=runner_client,
+        auto_pr=True,
+    )
+    app.state.execution_bridge = execution_bridge
+    logger.info("Execution bridge initialised")
+
+    # Track last plan per channel for !execute command
+    _last_plans: dict[str, dict[str, Any]] = {}  # channel_id → {plan, subtasks, project_id}
+
     # Discord notifier (Athena → user push notifications via webhook)
     discord_notifier = DiscordNotifier()
     app.state.discord_notifier = discord_notifier
@@ -169,6 +181,8 @@ async def lifespan(app: FastAPI):
             if manager:
                 reply = manager.chat(text, task_context="discord chat")
                 if reply and not reply.startswith("Error:"):
+                    # Check if reply contains a plan with subtasks
+                    _try_cache_plan(channel_id, reply)
                     return reply
                 else:
                     logger.warning("Suppressed error reply to Discord: %s", reply[:120] if reply else "empty")
@@ -176,6 +190,43 @@ async def lifespan(app: FastAPI):
         except Exception:
             logger.exception("Discord message handler error")
         return None
+
+    def _try_cache_plan(channel_id: str, reply: str) -> None:
+        """If the reply contains a JSON plan, cache it for !execute."""
+        import json as _json
+        try:
+            start = reply.find("{")
+            end = reply.rfind("}") + 1
+            if start >= 0 and end > start:
+                data = _json.loads(reply[start:end])
+                if "subtasks" in data and isinstance(data["subtasks"], list):
+                    _last_plans[channel_id] = {
+                        "plan": data.get("plan", ""),
+                        "subtasks": data["subtasks"],
+                        "project_id": _extract_project_id(data),
+                    }
+                    logger.info(
+                        "Cached plan for channel %s: %d subtasks",
+                        channel_id, len(data["subtasks"]),
+                    )
+        except (ValueError, KeyError):
+            pass
+
+    def _extract_project_id(plan_data: dict) -> str:
+        """Try to extract project_id from a plan. Default to ai-companion."""
+        plan_text = plan_data.get("plan", "").lower()
+        # Check known project keywords
+        registry = app.state.registry
+        for pid in registry.list_ids():
+            if pid in plan_text:
+                return pid
+        # Check subtask descriptions
+        for st in plan_data.get("subtasks", []):
+            desc = st.get("description", "").lower()
+            for pid in registry.list_ids():
+                if pid in desc:
+                    return pid
+        return "ai-companion"  # default: self-edit
 
     def _handle_discord_command(command: str, args: list[str]) -> str | None:
         """Handle !commands from Discord, return response text."""
@@ -200,6 +251,60 @@ async def lifespan(app: FastAPI):
         elif command == "approve" and args:
             task_store.move(args[0], "done")
             return f"✅ Task {args[0]} approved → done"
+        elif command == "execute":
+            # Execute the last cached plan for this channel
+            channel_id = args[0] if args else settings.discord_channel_id
+            cached = _last_plans.get(channel_id) or _last_plans.get(settings.discord_channel_id)
+            if not cached:
+                return (
+                    "❌ No plan cached. Ask Athena to make a plan first, "
+                    "then use `!execute` to run it."
+                )
+            if not execution_bridge.is_runner_online():
+                return "❌ Runner is offline — start the runner and SSH tunnel first."
+
+            project_id = cached.get("project_id", "ai-companion")
+            plan = cached["plan"]
+            subtasks = cached["subtasks"]
+
+            # Execute in background to not block Discord
+            import threading
+            def _bg_execute():
+                result = execution_bridge.execute_plan(
+                    project_id=project_id,
+                    plan=plan,
+                    subtasks=subtasks,
+                    requested_by="discord",
+                )
+                # Report result via webhook
+                if result.success:
+                    msg = (
+                        f"✅ **Execution completed!**\n"
+                        f"Project: `{project_id}`\n"
+                        f"Branch: `{result.branch}`\n"
+                    )
+                    if result.pr_url:
+                        msg += f"PR: {result.pr_url}\n"
+                    msg += f"Duration: {result.duration_ms}ms"
+                else:
+                    msg = (
+                        f"❌ **Execution failed**\n"
+                        f"Project: `{project_id}`\n"
+                        f"Error: {result.error}\n"
+                        f"Branch: `{result.branch}`"
+                    )
+                discord_notifier.send_sync(msg)
+
+            threading.Thread(target=_bg_execute, daemon=True).start()
+            return (
+                f"🚀 **Execution started!**\n"
+                f"Project: `{project_id}`\n"
+                f"Subtasks: {len(subtasks)}\n"
+                f"I'll notify you when it's done."
+            )
+        elif command == "runner":
+            online = execution_bridge.is_runner_online()
+            return f"🔌 Runner is **{'online ✅' if online else 'offline ❌'}**"
         return None
 
     discord_poller = DiscordBotPoller(

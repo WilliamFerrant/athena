@@ -144,6 +144,10 @@ class ProjectRegistry:
     def get(self, project_id: str) -> Project | None:
         return next((p for p in self.projects if p.id == project_id), None)
 
+    def list_ids(self) -> list[str]:
+        """Return all project IDs."""
+        return [p.id for p in self.projects]
+
     def by_group(self) -> dict[str, list[Project]]:
         groups: dict[str, list[Project]] = {}
         for p in self.projects:
