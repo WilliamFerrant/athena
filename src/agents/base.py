@@ -13,6 +13,11 @@ from src.token_tracker.tracker import TokenTracker
 
 logger = logging.getLogger(__name__)
 
+# Maximum messages kept in conversation history (user+assistant pairs).
+# Older messages are dropped to prevent token cost from growing unbounded.
+# mem0 retains the important facts from dropped messages.
+MAX_CONVERSATION_MESSAGES = 20  # 10 exchanges
+
 
 class BaseAgent:
     """Abstract base for all agents in the system.
@@ -109,6 +114,10 @@ class BaseAgent:
         assert_safe(user_message)
         self._conversation.append({"role": "user", "content": user_message})
 
+        # Trim conversation to sliding window to control token costs
+        if len(self._conversation) > MAX_CONVERSATION_MESSAGES:
+            self._conversation = self._conversation[-MAX_CONVERSATION_MESSAGES:]
+
         # Tick the drive system (simulate work)
         self.drives.tick(minutes_worked=0.5)
 
@@ -149,6 +158,11 @@ class BaseAgent:
         """Async version of chat."""
         assert_safe(user_message)
         self._conversation.append({"role": "user", "content": user_message})
+
+        # Trim conversation to sliding window to control token costs
+        if len(self._conversation) > MAX_CONVERSATION_MESSAGES:
+            self._conversation = self._conversation[-MAX_CONVERSATION_MESSAGES:]
+
         self.drives.tick(minutes_worked=0.5)
 
         response = await self.llm_backend.acreate_message(

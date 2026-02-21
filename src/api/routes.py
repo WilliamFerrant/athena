@@ -93,6 +93,102 @@ def athena_greet(request: Request) -> dict[str, str]:
     return {"greeting": manager.greet_user()}
 
 
+class CreateProjectFromChatRequest(BaseModel):
+    message: str  # natural-language project description from the user
+    # When the user answers Athena's follow-up questions, pass the original
+    # extracted details here so we skip re-extraction and go straight to creation.
+    confirmed_details: dict[str, Any] | None = None
+
+
+# Fields Athena will always ask about if missing (never silently skip)
+_CRITICAL_FIELDS = {"git_remote", "health_url"}
+
+
+@router.post("/chat/create-project")
+def chat_create_project(req: CreateProjectFromChatRequest, request: Request) -> dict[str, Any]:
+    """Let Athena parse a natural-language message and register a new project.
+
+    Flow:
+    1. First call (no confirmed_details): Athena extracts what she can.
+       - If critical fields (git_remote, health_url) are missing → returns
+         ``{"status": "needs_info", "questions": "...", "partial": {...}}``
+         so the frontend can show Athena's question to the user.
+       - If everything is present → creates immediately.
+    2. Second call (confirmed_details set): skip extraction, create directly
+       with the completed data from the user's answer.
+    """
+    agents = getattr(request.app.state, "agents", {})
+    manager = agents.get("manager")
+    if not manager or not hasattr(manager, "extract_project_details"):
+        raise HTTPException(status_code=503, detail="Manager agent unavailable")
+
+    # -- Step 2: user answered Athena's questions, create directly -------------
+    if req.confirmed_details:
+        details = req.confirmed_details
+    else:
+        # -- Step 1: extract from natural language -----------------------------
+        details = manager.extract_project_details(req.message)
+        if not details:
+            return {"detected": False, "message": "No project registration intent detected"}
+
+        # Check for missing critical fields Athena couldn't infer
+        missing: list[str] = details.get("missing") or []
+        critical_missing = [f for f in missing if f in _CRITICAL_FIELDS]
+        if critical_missing:
+            return {
+                "detected": True,
+                "status": "needs_info",
+                "missing": critical_missing,
+                "questions": details.get("questions", "Can you provide the missing details?"),
+                "partial": details,  # frontend sends this back as confirmed_details after user answers
+            }
+
+    # -- Create the project ---------------------------------------------------
+    from src.api.health_routes import ProjectUpsertRequest, _req_to_entry, _read_yaml, _write_yaml
+
+    registry = request.app.state.registry
+
+    pid = details.get("id") or ""
+    if not pid:
+        import re
+        pid = re.sub(r"[^a-z0-9]+", "-", details.get("name", "project").lower()).strip("-")
+        details["id"] = pid
+
+    if registry.get(pid):
+        raise HTTPException(status_code=409, detail=f"Project '{pid}' already exists")
+
+    # Build upsert request (only known fields; ignore internal keys like "missing"/"questions")
+    known_fields = ProjectUpsertRequest.model_fields
+    upsert_data = {k: v for k, v in details.items() if k in known_fields}
+    upsert_data["id"] = pid
+    # Auto-map repo_path → path_windows when it looks like a Windows absolute path
+    repo = upsert_data.get("repo_path", "")
+    if repo and not upsert_data.get("path_windows") and (repo.startswith("C:") or repo.startswith("D:")):
+        upsert_data["path_windows"] = repo
+    upsert_req = ProjectUpsertRequest(**upsert_data)
+
+    yaml_data = _read_yaml()
+    entry = _req_to_entry(upsert_req)
+
+    # Append TLS + DNS checks if hostnames were extracted
+    tls_host = details.get("tls_hostname") or ""
+    dns_host = details.get("dns_hostname") or tls_host
+    extra_checks: list[dict] = entry.get("health_checks") or []
+    if tls_host:
+        extra_checks.append({"id": "tls-cert", "type": "tls", "hostname": tls_host, "warn_days_before": 14, "interval_seconds": 3600})
+    if dns_host:
+        extra_checks.append({"id": "dns-resolve", "type": "dns", "hostname": dns_host, "interval_seconds": 300})
+    if extra_checks:
+        entry["health_checks"] = extra_checks
+
+    yaml_data.setdefault("projects", []).append(entry)
+    _write_yaml(yaml_data)
+    registry.reload()
+
+    logger.info("Athena registered new project via chat: %s", pid)
+    return {"detected": True, "status": "created", "id": pid, "name": details.get("name", pid)}
+
+
 @router.post("/chat", response_model=ChatResponse)
 def chat_with_agent(req: ChatRequest, request: Request) -> ChatResponse:
     """Chat directly with a specific agent."""
@@ -473,6 +569,10 @@ async def stream_chat(req: StreamChatRequest, request: Request):
 
             # Append user message to persistent conversation history
             agent._conversation.append({"role": "user", "content": req.message})
+            # Trim to sliding window to control token costs
+            from src.agents.base import MAX_CONVERSATION_MESSAGES
+            if len(agent._conversation) > MAX_CONVERSATION_MESSAGES:
+                agent._conversation = agent._conversation[-MAX_CONVERSATION_MESSAGES:]
             agent.drives.tick(minutes_worked=0.5)
 
             # Use the agent's own LLM backend for streaming (OpenAI for

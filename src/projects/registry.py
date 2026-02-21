@@ -166,6 +166,41 @@ class ProjectRegistry:
         """Force reload from disk."""
         return self.load(force=True)
 
+    def add_project(self, data: dict[str, Any]) -> Project:
+        """Append a new project entry to projects.yaml and return the parsed Project.
+
+        ``data`` must contain at least ``id`` and ``name``.
+        Raises ``ValueError`` if the project id already exists.
+        """
+        project_id = data.get("id", "").strip()
+        if not project_id:
+            raise ValueError("Project 'id' is required")
+        if self.get(project_id):
+            raise ValueError(f"Project '{project_id}' already exists in registry")
+
+        # Parse into a typed Project (validates structure)
+        project = _parse_project(data)
+
+        # Read current YAML, append, write back
+        try:
+            raw = yaml.safe_load(self._path.read_text(encoding="utf-8")) or {}
+        except Exception as e:
+            raise RuntimeError(f"Could not read registry file: {e}") from e
+
+        projects_list: list[dict] = raw.get("projects") or []
+        projects_list.append(data)
+        raw["projects"] = projects_list
+
+        self._path.write_text(
+            yaml.dump(raw, allow_unicode=True, sort_keys=False, default_flow_style=False),
+            encoding="utf-8",
+        )
+
+        # Update in-memory cache
+        self._projects.append(project)
+        logger.info("Added project '%s' to registry", project_id)
+        return project
+
 
 # ── Parsers ──────────────────────────────────────────────────────────────────
 

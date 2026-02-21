@@ -176,6 +176,69 @@ Respond with ONLY a JSON object:
 
         return {"verdict": "approve", "feedback": result, "score": 7}
 
+    def extract_project_details(self, user_message: str) -> dict[str, Any] | None:
+        """Parse a conversational message and extract project metadata as structured JSON.
+
+        Returns a dict with:
+          - standard project fields (id, name, group, priority, repo_path, git_remote,
+            health_url, tls_hostname, dns_hostname, tags)
+          - ``"missing"``: list of field names Athena could NOT infer and needs to ask
+          - ``"questions"``: human-readable questions to ask the user for missing fields
+
+        Returns ``None`` if the message is NOT a request to add a project.
+        """
+        prompt = f"""The user sent you this message:
+"{user_message}"
+
+Decide if the user wants to add / register a new project.
+
+If NOT a project registration request, respond with exactly: null
+
+If YES, extract ALL details you can infer from the message and fill in smart defaults for anything not mentioned:
+- "id": slugify the project name (lowercase, hyphens, no spaces). ALWAYS generate this.
+- "name": human-readable project name. ALWAYS generate this.
+- "group": one of "active-clients", "internal", "paused", "r-and-d". Guess from context (client project → "active-clients", personal tool → "internal"). Default "internal".
+- "priority": one of "high", "medium", "low". Default "medium".
+- "ownership": "client" if it's a client project, "personal" otherwise.
+- "repo_path": absolute local path on Windows (e.g. "C:/web dev/project-name"). Guess from name if not given (use "C:/web dev/<slug>"). Put "" if you truly cannot guess.
+- "git_remote": GitHub URL if mentioned. Put "" if not mentioned — add "git_remote" to missing.
+- "health_url": live site HTTPS URL if mentioned. Put "" if not mentioned — add "health_url" to missing.
+- "tls_hostname": extract hostname from health_url if present (e.g. "mysite.com"). Put "" otherwise.
+- "dns_hostname": same as tls_hostname if health_url is present. Put "" otherwise.
+- "tags": infer from tech stack mentioned (nextjs, react, python, fastapi, etc.). Use [].
+
+IMPORTANT: For "git_remote" and "health_url" — if not mentioned and cannot be inferred, add them to the "missing" list and generate a natural question for the user.
+
+Respond ONLY with a JSON object (no markdown fences):
+{{
+  "id": "slug-id",
+  "name": "Human Readable Name",
+  "group": "internal",
+  "priority": "medium",
+  "ownership": "personal",
+  "repo_path": "C:/web dev/slug-id",
+  "git_remote": "",
+  "health_url": "",
+  "tls_hostname": "",
+  "dns_hostname": "",
+  "tags": [],
+  "missing": ["git_remote", "health_url"],
+  "questions": "What's the GitHub remote URL? Does this project have a live site URL I should monitor?"
+}}"""
+
+        raw = self.chat(prompt, task_context="project registration intent detection")
+        raw = raw.strip()
+        if raw.lower() in ("null", "none", ""):
+            return None
+        try:
+            start = raw.find("{")
+            end = raw.rfind("}") + 1
+            if start >= 0 and end > start:
+                return json.loads(raw[start:end])
+        except (json.JSONDecodeError, ValueError):
+            logger.debug("extract_project_details: could not parse JSON from: %s", raw[:200])
+        return None
+
     def synthesize(self, task: str, results: dict[str, str]) -> str:
         """Synthesize final output from all agent results."""
         results_text = "\n\n".join(
