@@ -104,9 +104,12 @@ class AgentMemory:
         return results if isinstance(results, list) else []
 
     def get_all(self) -> list[dict[str, Any]]:
-        """Retrieve all memories for this agent."""
+        """Retrieve all memories for this agent (v2 API requires filters)."""
         try:
-            results = self._client.get_all(user_id=self.agent_id)
+            results = self._client.get_all(
+                version="v2",
+                filters={"AND": [{"user_id": self.agent_id}]},
+            )
         except Exception as e:
             logger.warning("Memory get_all failed for %s: %s", self.agent_id, e)
             return []
