@@ -89,6 +89,41 @@ projects:
 
     tags: [nextjs, typescript, client]
 
+  # ── Esther House ───────────────────────────────────────────────────────
+  - id: esther-house
+    name: Esther House
+    group: active-clients
+    priority: high
+    ownership: client
+
+    repo_path: ""
+    git_remote: "https://github.com/Krysyaga/esther-house"
+
+    envs:
+      prod:
+        app_url: "https://estherhouse.ch"
+
+    health_checks:
+      - id: prod-http
+        type: http
+        url: "https://estherhouse.ch"
+        expected_status: 200
+        timeout_ms: 10000
+        interval_seconds: 60
+      - id: tls-cert
+        type: tls
+        hostname: "estherhouse.ch"
+        warn_days_before: 14
+        interval_seconds: 3600
+      - id: dns-resolve
+        type: dns
+        hostname: "estherhouse.ch"
+        interval_seconds: 300
+
+    runbooks: []
+
+    tags: [client, production]
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Check type reference:
 #
