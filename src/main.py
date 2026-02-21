@@ -28,7 +28,7 @@ def run_server() -> None:
         "src.api.server:app",
         host=settings.api_host,
         port=settings.api_port,
-        reload=True,
+        reload=False,
     )
 
 
